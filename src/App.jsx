@@ -43,6 +43,55 @@ import {
   ShoppingBasket,
   Timer,
 } from "@mui/icons-material";
+import { motion, AnimatePresence } from "framer-motion";
+
+// --- SOUND ENGINE (WEB AUDIO API - DIJAMIN BUNYI) ---
+const playTone = (type) => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return; // Browser jadul banget
+
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+
+    if (type === "click") {
+      // Suara "Tick" (High Pitch Short)
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, now);
+      osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    } else if (type === "success") {
+      // Suara "Ting-Ting" (Major Chord Arpeggio)
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    } else if (type === "delete") {
+      // Suara "Buzzer" (Low Sawtooth)
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.linearRampToValueAtTime(50, now + 0.2);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    }
+  } catch (e) {
+    console.error("Audio Error:", e);
+  }
+};
 
 // --- KONFIGURASI WARNA (IAN TAKOYAKI) ---
 const COLORS = {
@@ -77,7 +126,8 @@ function App() {
   });
   const [pakeKatsuobushi, setPakeKatsuobushi] = useState(false);
   const [isCampurMode, setIsCampurMode] = useState(false);
-  const [qtyAir, setQtyAir] = useState(1);
+
+  const [qtyAir, setQtyAir] = useState(0);
 
   const [nomorAntrian, setNomorAntrian] = useState(1);
   const [namaPelanggan, setNamaPelanggan] = useState("");
@@ -85,9 +135,8 @@ function App() {
   const [tempCart, setTempCart] = useState([]);
   const [masterQueue, setMasterQueue] = useState([]);
 
-  // State Khusus Countdown Delete
-  const [deletingId, setDeletingId] = useState(null); // ID Antrian yang sedang menghitung mundur
-  const [countdown, setCountdown] = useState(3); // Angka hitung mundur
+  const [deletingId, setDeletingId] = useState(null);
+  const [countdown, setCountdown] = useState(3);
 
   const [expandedAntrian, setExpandedAntrian] = useState(null);
   const [snackbar, setSnackbar] = useState({
@@ -116,9 +165,9 @@ function App() {
     if (deletingId !== null && countdown > 0) {
       timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
     } else if (deletingId !== null && countdown === 0) {
-      // Waktu habis, hapus data!
       setMasterQueue((prev) => prev.filter((p) => p.noAntrian !== deletingId));
       setDeletingId(null);
+      playTone("success");
       setSnackbar({
         open: true,
         message: "Pesanan Selesai & Dihapus!",
@@ -134,21 +183,22 @@ function App() {
     const currentQty = isian[id] || 0;
     if (currentQty + delta < 0) return;
     if (delta > 0 && totalButir >= 5) return;
-    setIsian({ ...isian, [id]: currentQty + delta });
-  };
 
-  const handleSetMax = (id) => {
-    setIsian({ [id]: 5 });
-    setIsCampurMode(false);
+    setIsian({ ...isian, [id]: currentQty + delta });
+    if (delta > 0) playTone("click");
   };
 
   const setPaketCampur = () => {
     setIsian({ sosis: 1, cumi: 1, kepiting: 1, keju: 1, kornet: 1, gurita: 0 });
     setIsCampurMode(true);
+    playTone("click");
   };
 
-  const handleSausChange = (saus) =>
+  const handleSausChange = (saus) => {
     setSauses({ ...sauses, [saus]: !sauses[saus] });
+    playTone("click");
+  };
+
   const toggleSemuaSaus = () => {
     const allSelected = Object.values(sauses).every((val) => val === true);
     setSauses({
@@ -156,6 +206,7 @@ function App() {
       "Saus Tomat": !allSelected,
       Mayonaise: !allSelected,
     });
+    playTone("click");
   };
 
   const resetFormTakoyaki = () => {
@@ -163,6 +214,7 @@ function App() {
     setSauses({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
     setPakeKatsuobushi(false);
     setIsCampurMode(false);
+    playTone("delete");
   };
 
   const hitungHargaPorsi = () => {
@@ -170,52 +222,82 @@ function App() {
     return isian["gurita"] === 5 ? 20000 : 15000;
   };
 
-  // --- LOGIC DRAFT & FINAL ---
+  // --- LOGIC UNIFIED ADD TO CART ---
   const tambahKeTemp = () => {
-    if (totalButir === 0) return;
-    let namaMenu = "Takoyaki Custom";
-    if (isCampurMode) namaMenu = "Takoyaki Campur";
-    else if (isian["gurita"] === 5) namaMenu = "Takoyaki Full Gurita";
+    let itemsAdded = false;
 
-    const itemDraft = {
-      id: Date.now(),
-      nama: namaMenu,
-      type: "food",
-      qty: 1,
-      detail: isian,
-      sauses: Object.keys(sauses).filter((key) => sauses[key]),
-      katsuobushi: pakeKatsuobushi,
-      harga: hitungHargaPorsi(),
-    };
+    // 1. PROSES AIR MINERAL
+    if (qtyAir > 0) {
+      const existingWaterIndex = tempCart.findIndex(
+        (item) => item.type === "drink",
+      );
+      if (existingWaterIndex !== -1) {
+        const updatedCart = [...tempCart];
+        const oldItem = updatedCart[existingWaterIndex];
+        const newQty = oldItem.qty + qtyAir;
+        updatedCart[existingWaterIndex] = {
+          ...oldItem,
+          qty: newQty,
+          nama: `Air Mineral (${newQty}x)`,
+          harga: 5000 * newQty,
+        };
+        setTempCart(updatedCart);
+      } else {
+        const itemAir = {
+          id: Date.now() + 1,
+          nama: `Air Mineral (${qtyAir}x)`,
+          type: "drink",
+          qty: qtyAir,
+          detail: {},
+          sauses: [],
+          harga: 5000 * qtyAir,
+        };
+        setTempCart((prev) => [...prev, itemAir]);
+      }
+      itemsAdded = true;
+    }
 
-    setTempCart([...tempCart, itemDraft]);
-    resetFormTakoyaki();
-    setTimeout(
-      () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-      100,
-    );
-  };
+    // 2. PROSES TAKOYAKI
+    if (totalButir > 0) {
+      let namaMenu = "Takoyaki Custom";
+      if (isCampurMode) namaMenu = "Takoyaki Campur";
+      else if (isian["gurita"] === 5) namaMenu = "Takoyaki Full Gurita";
 
-  const tambahAirKeTemp = () => {
-    const itemDraft = {
-      id: Date.now(),
-      nama: `Air Mineral (${qtyAir}x)`,
-      type: "drink",
-      qty: qtyAir,
-      detail: {},
-      sauses: [],
-      harga: 5000 * qtyAir,
-    };
-    setTempCart([...tempCart, itemDraft]);
-    setQtyAir(1);
-    setTimeout(
-      () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-      100,
-    );
+      const itemTako = {
+        id: Date.now(),
+        nama: namaMenu,
+        type: "food",
+        qty: 1,
+        detail: isian,
+        sauses: Object.keys(sauses).filter((key) => sauses[key]),
+        katsuobushi: pakeKatsuobushi,
+        harga: hitungHargaPorsi(),
+      };
+
+      setTempCart((prev) => [...prev, itemTako]);
+      itemsAdded = true;
+    }
+
+    if (itemsAdded) {
+      resetFormTakoyaki();
+      setQtyAir(0);
+      playTone("success");
+      setTimeout(
+        () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
+        100,
+      );
+    } else {
+      setSnackbar({
+        open: true,
+        message: "Isi pesanan dulu ya! (Takoyaki atau Air)",
+        severity: "warning",
+      });
+    }
   };
 
   const hapusDariTemp = (id) => {
     setTempCart(tempCart.filter((item) => item.id !== id));
+    playTone("delete");
   };
 
   const prosesPesananFinal = () => {
@@ -225,7 +307,7 @@ function App() {
       noAntrian: nomorAntrian,
       namaPemesan: getNamaFinal(),
       jamMasuk: getJamSekarang(),
-      statusMasak: "dibuat", // Default belum masak
+      statusMasak: "dibuat",
       statusBayar: "belum",
     }));
 
@@ -239,6 +321,7 @@ function App() {
     setNomorAntrian((prev) => prev + 1);
     setNamaPelanggan("");
     setExpandedAntrian(nomorAntrian);
+    playTone("success");
   };
 
   // --- LOGIC DAPUR ---
@@ -261,7 +344,6 @@ function App() {
     (a, b) => b.noAntrian - a.noAntrian,
   );
 
-  // Toggle Checklist (Hanya Visual)
   const toggleStatusMasakItem = (item) => {
     setMasterQueue((prev) =>
       prev.map((p) =>
@@ -273,10 +355,12 @@ function App() {
           : p,
       ),
     );
+    playTone("click");
   };
 
   const hapusDariMaster = (itemId) => {
     setMasterQueue((prev) => prev.filter((p) => p.id !== itemId));
+    playTone("delete");
   };
 
   const handleBayarLunasGroup = (noAntrian) => {
@@ -290,9 +374,9 @@ function App() {
       message: "Pembayaran LUNAS! ✅",
       severity: "success",
     });
+    playTone("success");
   };
 
-  // Trigger Countdown Delete
   const startDeleteSequence = (noAntrian) => {
     const groupItems = masterQueue.filter((p) => p.noAntrian === noAntrian);
     const isLunas = groupItems.every((p) => p.statusBayar === "lunas");
@@ -303,14 +387,14 @@ function App() {
         message: "⚠️ Pesanan belum LUNAS! Tagih dulu ya.",
         severity: "warning",
       });
+      playTone("delete");
       return;
     }
 
-    setCountdown(3); // Reset timer ke 3 detik
-    setDeletingId(noAntrian); // Mulai sequence
+    setCountdown(3);
+    setDeletingId(noAntrian);
   };
 
-  // Batalkan Countdown (Opsional, jika kasir panik salah pencet)
   const cancelDelete = () => {
     setDeletingId(null);
     setCountdown(3);
@@ -413,262 +497,280 @@ function App() {
                 </Typography>
               </Box>
             ) : (
-              <Stack spacing={2}>
-                {sortedGroups.map((group) => {
-                  const isAllLunas = group.items.every(
-                    (i) => i.statusBayar === "lunas",
-                  );
-                  const isAllSelesai = group.items.every(
-                    (i) => i.statusMasak === "selesai",
-                  ); // Semua item terchecklist
-                  const isDeleting = deletingId === group.noAntrian; // Sedang menghitung mundur
+              <Stack spacing={2} component={motion.div} layout>
+                <AnimatePresence>
+                  {sortedGroups.map((group) => {
+                    const isAllLunas = group.items.every(
+                      (i) => i.statusBayar === "lunas",
+                    );
+                    const isDeleting = deletingId === group.noAntrian;
 
-                  return (
-                    <Card
-                      key={group.noAntrian}
-                      elevation={3}
-                      sx={{
-                        borderRadius: 3,
-                        border: isDeleting
-                          ? `4px solid ${COLORS.warning}`
-                          : isAllLunas
-                            ? `2px solid ${COLORS.success}`
-                            : `2px solid ${COLORS.primary}`,
-                        bgcolor: isDeleting
-                          ? "#fff3e0"
-                          : isAllLunas
-                            ? "#c8e6c9"
-                            : "white",
-                        transition: "all 0.3s",
-                        transform: isDeleting ? "scale(0.98)" : "scale(1)",
-                        opacity: isDeleting ? 0.8 : 1,
-                      }}
-                    >
-                      <CardActionArea
-                        onClick={() =>
-                          setExpandedAntrian(
-                            expandedAntrian === group.noAntrian
-                              ? null
-                              : group.noAntrian,
-                          )
-                        }
-                        sx={{
-                          p: 2.5,
-                          bgcolor:
-                            isAllLunas && !isDeleting ? "#e8f5e9" : "inherit",
+                    return (
+                      <motion.div
+                        key={group.noAntrian}
+                        layout
+                        initial={{ opacity: 0, x: -50 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{
+                          opacity: 0,
+                          x: 50,
+                          transition: { duration: 0.3 },
                         }}
                       >
-                        <Box
-                          display="flex"
-                          justifyContent="space-between"
-                          alignItems="center"
+                        <Card
+                          elevation={3}
+                          sx={{
+                            borderRadius: 3,
+                            border: isDeleting
+                              ? `4px solid ${COLORS.warning}`
+                              : isAllLunas
+                                ? `2px solid ${COLORS.success}`
+                                : `2px solid ${COLORS.primary}`,
+                            bgcolor: isDeleting
+                              ? "#fff3e0"
+                              : isAllLunas
+                                ? "#c8e6c9"
+                                : "white",
+                            transition: "all 0.3s",
+                            transform: isDeleting ? "scale(0.98)" : "scale(1)",
+                            opacity: isDeleting ? 0.8 : 1,
+                          }}
                         >
-                          <Box>
+                          <CardActionArea
+                            onClick={() =>
+                              setExpandedAntrian(
+                                expandedAntrian === group.noAntrian
+                                  ? null
+                                  : group.noAntrian,
+                              )
+                            }
+                            sx={{
+                              p: 2.5,
+                              bgcolor:
+                                isAllLunas && !isDeleting
+                                  ? "#e8f5e9"
+                                  : "inherit",
+                            }}
+                          >
                             <Box
                               display="flex"
+                              justifyContent="space-between"
                               alignItems="center"
-                              gap={1.5}
-                              mb={0.5}
                             >
-                              <Chip
-                                label={"#" + group.noAntrian}
-                                sx={{
-                                  bgcolor: COLORS.primary,
-                                  color: "white",
-                                  fontWeight: "bold",
-                                  fontSize: "1.1rem",
-                                  height: "32px",
-                                }}
-                              />
-                              <Typography
-                                variant="h5"
-                                fontWeight="bold"
-                                color={COLORS.textDark}
-                              >
-                                {group.namaPemesan}
-                              </Typography>
-                            </Box>
-                            <Typography
-                              variant="body1"
-                              color={COLORS.textGrey}
-                              fontWeight="bold"
-                            >
-                              {group.items.length} Item • {group.jamMasuk}
-                            </Typography>
-                          </Box>
-                          <Box textAlign="right">
-                            <Typography
-                              variant="h5"
-                              fontWeight="bold"
-                              color={COLORS.primary}
-                            >
-                              Rp {group.totalTagihan.toLocaleString()}
-                            </Typography>
-                            {isAllLunas && (
-                              <Typography
-                                variant="body2"
-                                fontWeight="bold"
-                                color={COLORS.success}
-                              >
-                                LUNAS ✅
-                              </Typography>
-                            )}
-                          </Box>
-                        </Box>
-                      </CardActionArea>
-                      <Collapse
-                        in={expandedAntrian === group.noAntrian}
-                        unmountOnExit
-                      >
-                        <Box sx={{ bgcolor: "#fff" }}>
-                          {group.items.map((item) => (
-                            <Box
-                              key={item.id}
-                              sx={{
-                                p: 2,
-                                borderTop: "1px solid #eee",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                bgcolor:
-                                  item.statusMasak === "selesai"
-                                    ? "#f1f8e9"
-                                    : "white",
-                              }}
-                            >
-                              <Box sx={{ flexGrow: 1 }}>
-                                <Typography
-                                  variant="h6"
-                                  fontWeight="bold"
-                                  sx={{
-                                    fontSize: "1.15rem",
-                                    textDecoration:
-                                      item.statusMasak === "selesai"
-                                        ? "line-through"
-                                        : "none",
-                                    color:
-                                      item.statusMasak === "selesai"
-                                        ? "grey"
-                                        : "black",
-                                  }}
+                              <Box>
+                                <Box
+                                  display="flex"
+                                  alignItems="center"
+                                  gap={1.5}
+                                  mb={0.5}
                                 >
-                                  {item.nama}
-                                </Typography>
-                                {item.type === "food" && (
-                                  <Typography
-                                    variant="body1"
+                                  <Chip
+                                    label={"#" + group.noAntrian}
                                     sx={{
-                                      color: COLORS.textGrey,
-                                      fontSize: "1.05rem",
-                                      mt: 0.5,
-                                      lineHeight: 1.4,
+                                      bgcolor: COLORS.primary,
+                                      color: "white",
+                                      fontWeight: "bold",
+                                      fontSize: "1.1rem",
+                                      height: "32px",
                                     }}
+                                  />
+                                  <Typography
+                                    variant="h5"
+                                    fontWeight="bold"
+                                    color={COLORS.textDark}
                                   >
-                                    {Object.entries(item.detail)
-                                      .map(([k, v]) =>
-                                        v > 0 ? `${k}(${v})` : "",
-                                      )
-                                      .filter(Boolean)
-                                      .join(", ")}
-                                    <br />
-                                    <span
-                                      style={{
-                                        color: COLORS.primary,
-                                        fontWeight: 500,
-                                      }}
-                                    >
-                                      {item.sauses.join(", ")}
-                                      {item.katsuobushi ? ", Katsuobushi" : ""}
-                                    </span>
+                                    {group.namaPemesan}
+                                  </Typography>
+                                </Box>
+                                <Typography
+                                  variant="body1"
+                                  color={COLORS.textGrey}
+                                  fontWeight="bold"
+                                >
+                                  {group.items.length} Item • {group.jamMasuk}
+                                </Typography>
+                              </Box>
+                              <Box textAlign="right">
+                                <Typography
+                                  variant="h5"
+                                  fontWeight="bold"
+                                  color={COLORS.primary}
+                                >
+                                  Rp {group.totalTagihan.toLocaleString()}
+                                </Typography>
+                                {isAllLunas && (
+                                  <Typography
+                                    variant="body2"
+                                    fontWeight="bold"
+                                    color={COLORS.success}
+                                  >
+                                    LUNAS ✅
                                   </Typography>
                                 )}
                               </Box>
-                              <Box display="flex" gap={1} alignItems="center">
-                                {/* CHECKLIST: Toggle Saja */}
-                                <IconButton
-                                  onClick={() => toggleStatusMasakItem(item)}
-                                  color={
-                                    item.statusMasak === "selesai"
-                                      ? "success"
-                                      : "default"
+                            </Box>
+                          </CardActionArea>
+                          <Collapse
+                            in={expandedAntrian === group.noAntrian}
+                            unmountOnExit
+                          >
+                            <Box sx={{ bgcolor: "#fff" }}>
+                              {group.items.map((item) => (
+                                <Box
+                                  key={item.id}
+                                  sx={{
+                                    p: 2,
+                                    borderTop: "1px solid #eee",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    bgcolor:
+                                      item.statusMasak === "selesai"
+                                        ? "#f1f8e9"
+                                        : "white",
+                                  }}
+                                >
+                                  <Box sx={{ flexGrow: 1 }}>
+                                    <Typography
+                                      variant="h6"
+                                      fontWeight="bold"
+                                      sx={{
+                                        fontSize: "1.15rem",
+                                        textDecoration:
+                                          item.statusMasak === "selesai"
+                                            ? "line-through"
+                                            : "none",
+                                        color:
+                                          item.statusMasak === "selesai"
+                                            ? "grey"
+                                            : "black",
+                                      }}
+                                    >
+                                      {item.nama}
+                                    </Typography>
+                                    {item.type === "food" && (
+                                      <Typography
+                                        variant="body1"
+                                        sx={{
+                                          color: COLORS.textGrey,
+                                          fontSize: "1.05rem",
+                                          mt: 0.5,
+                                          lineHeight: 1.4,
+                                        }}
+                                      >
+                                        {Object.entries(item.detail)
+                                          .map(([k, v]) =>
+                                            v > 0 ? `${k}(${v})` : "",
+                                          )
+                                          .filter(Boolean)
+                                          .join(", ")}
+                                        <br />
+                                        <span
+                                          style={{
+                                            color: COLORS.primary,
+                                            fontWeight: 500,
+                                          }}
+                                        >
+                                          {item.sauses.join(", ")}
+                                          {item.katsuobushi
+                                            ? ", Katsuobushi"
+                                            : ""}
+                                        </span>
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                  <Box
+                                    display="flex"
+                                    gap={1}
+                                    alignItems="center"
+                                  >
+                                    <IconButton
+                                      onClick={() =>
+                                        toggleStatusMasakItem(item)
+                                      }
+                                      color={
+                                        item.statusMasak === "selesai"
+                                          ? "success"
+                                          : "default"
+                                      }
+                                    >
+                                      <CheckCircle sx={{ fontSize: 32 }} />
+                                    </IconButton>
+                                    <IconButton
+                                      color="error"
+                                      onClick={() => hapusDariMaster(item.id)}
+                                    >
+                                      <Delete sx={{ fontSize: 32 }} />
+                                    </IconButton>
+                                  </Box>
+                                </Box>
+                              ))}
+                              <Box
+                                sx={{
+                                  p: 2,
+                                  bgcolor: "#fafafa",
+                                  borderTop: "2px dashed #eee",
+                                  display: "flex",
+                                  gap: 1,
+                                }}
+                              >
+                                <Button
+                                  fullWidth
+                                  variant="contained"
+                                  size="large"
+                                  color={isAllLunas ? "success" : "error"}
+                                  onClick={() =>
+                                    handleBayarLunasGroup(group.noAntrian)
                                   }
+                                  startIcon={<AttachMoney />}
+                                  disabled={isAllLunas}
+                                  sx={{ fontSize: "1rem", fontWeight: "bold" }}
                                 >
-                                  <CheckCircle sx={{ fontSize: 32 }} />
-                                </IconButton>
-                                <IconButton
-                                  color="error"
-                                  onClick={() => hapusDariMaster(item.id)}
-                                >
-                                  <Delete sx={{ fontSize: 32 }} />
-                                </IconButton>
+                                  {isAllLunas ? "LUNAS" : "BAYAR SEMUA"}
+                                </Button>
+
+                                {isDeleting ? (
+                                  <Button
+                                    fullWidth
+                                    variant="contained"
+                                    size="large"
+                                    sx={{
+                                      bgcolor: COLORS.warning,
+                                      color: "white",
+                                      fontSize: "1rem",
+                                      fontWeight: "bold",
+                                    }}
+                                    onClick={cancelDelete}
+                                    startIcon={<Timer />}
+                                  >
+                                    BATALKAN ({countdown})
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    fullWidth
+                                    variant="contained"
+                                    size="large"
+                                    sx={{
+                                      bgcolor: COLORS.secondary,
+                                      color: "white",
+                                      fontSize: "1rem",
+                                      fontWeight: "bold",
+                                    }}
+                                    onClick={() =>
+                                      startDeleteSequence(group.noAntrian)
+                                    }
+                                    startIcon={<Kitchen />}
+                                  >
+                                    SELESAI SAJIKAN
+                                  </Button>
+                                )}
                               </Box>
                             </Box>
-                          ))}
-                          <Box
-                            sx={{
-                              p: 2,
-                              bgcolor: "#fafafa",
-                              borderTop: "2px dashed #eee",
-                              display: "flex",
-                              gap: 1,
-                            }}
-                          >
-                            <Button
-                              fullWidth
-                              variant="contained"
-                              size="large"
-                              color={isAllLunas ? "success" : "error"}
-                              onClick={() =>
-                                handleBayarLunasGroup(group.noAntrian)
-                              }
-                              startIcon={<AttachMoney />}
-                              disabled={isAllLunas}
-                              sx={{ fontSize: "1rem", fontWeight: "bold" }}
-                            >
-                              {isAllLunas ? "LUNAS" : "BAYAR SEMUA"}
-                            </Button>
-
-                            {/* TOMBOL DELETE DENGAN COUNTDOWN */}
-                            {isDeleting ? (
-                              <Button
-                                fullWidth
-                                variant="contained"
-                                size="large"
-                                sx={{
-                                  bgcolor: COLORS.warning,
-                                  color: "white",
-                                  fontSize: "1rem",
-                                  fontWeight: "bold",
-                                }}
-                                onClick={cancelDelete}
-                                startIcon={<Timer />}
-                              >
-                                BATALKAN ({countdown})
-                              </Button>
-                            ) : (
-                              <Button
-                                fullWidth
-                                variant="contained"
-                                size="large"
-                                sx={{
-                                  bgcolor: COLORS.secondary,
-                                  color: "white",
-                                  fontSize: "1rem",
-                                  fontWeight: "bold",
-                                }}
-                                onClick={() =>
-                                  startDeleteSequence(group.noAntrian)
-                                }
-                                startIcon={<Kitchen />}
-                              >
-                                SELESAI SAJIKAN
-                              </Button>
-                            )}
-                          </Box>
-                        </Box>
-                      </Collapse>
-                    </Card>
-                  );
-                })}
+                          </Collapse>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </Stack>
             )}
           </Box>
@@ -739,20 +841,22 @@ function App() {
           >
             <Grid container spacing={2} mb={3}>
               <Grid item xs={6}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={setPaketCampur}
-                  startIcon={<Restaurant />}
-                  sx={{
-                    height: "60px",
-                    bgcolor: COLORS.secondary,
-                    fontSize: "1.1rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  CAMPUR (15K)
-                </Button>
+                <motion.div whileTap={{ scale: 0.95 }}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={setPaketCampur}
+                    startIcon={<Restaurant />}
+                    sx={{
+                      height: "60px",
+                      bgcolor: COLORS.secondary,
+                      fontSize: "1.1rem",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    CAMPUR (15K)
+                  </Button>
+                </motion.div>
               </Grid>
               <Grid item xs={6}>
                 <Box
@@ -765,25 +869,29 @@ function App() {
                   }}
                 >
                   <IconButton
-                    onClick={() => setQtyAir(Math.max(1, qtyAir - 1))}
+                    onClick={() => {
+                      setQtyAir(Math.max(0, qtyAir - 1));
+                      playTone("click");
+                    }}
                     sx={{ width: "50px", height: "100%" }}
+                    disabled={qtyAir === 0}
                   >
                     <Remove />
                   </IconButton>
-                  <Button
-                    fullWidth
-                    onClick={tambahAirKeTemp}
-                    startIcon={<WaterDrop />}
-                    sx={{
-                      color: COLORS.secondary,
-                      fontSize: "1.1rem",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    AIR ({qtyAir})
-                  </Button>
+                  <Box sx={{ flexGrow: 1, textAlign: "center" }}>
+                    <Typography
+                      fontWeight="bold"
+                      fontSize="1.1rem"
+                      color={COLORS.secondary}
+                    >
+                      AIR ({qtyAir})
+                    </Typography>
+                  </Box>
                   <IconButton
-                    onClick={() => setQtyAir(qtyAir + 1)}
+                    onClick={() => {
+                      setQtyAir(qtyAir + 1);
+                      playTone("click");
+                    }}
                     sx={{ width: "50px", height: "100%" }}
                   >
                     <Add />
@@ -798,7 +906,6 @@ function App() {
               alignItems="center"
               mb={1}
             >
-              {/* RESTORED: Counter Isian (X/5) */}
               <Box display="flex" alignItems="center" gap={1}>
                 <Typography variant="h6" fontWeight="bold">
                   Racik Isian:
@@ -821,19 +928,16 @@ function App() {
               </Button>
             </Box>
 
+            {/* GRID KARTU ISIAN (TANPA TOMBOL MAX) */}
             <Grid container spacing={1} mb={3}>
               {VARIAN_ISIAN.map((item) => (
                 <Grid item xs={4} key={item.id}>
-                  <Tooltip title="Klik 2x = Max">
+                  <motion.div whileTap={{ scale: 0.95 }}>
                     <Card
                       elevation={0}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleGantiIsian(item.id, 1);
-                      }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        handleSetMax(item.id);
                       }}
                       sx={{
                         bgcolor:
@@ -894,11 +998,11 @@ function App() {
                             e.stopPropagation();
                             handleGantiIsian(item.id, -1);
                           }}
-                          onDoubleClick={(e) => e.stopPropagation()}
                           sx={{ bgcolor: "#ffebee" }}
                         >
                           <Remove />
                         </IconButton>
+
                         <Typography
                           sx={{
                             fontWeight: "bold",
@@ -910,15 +1014,12 @@ function App() {
                         >
                           {isian[item.id]}
                         </Typography>
+
                         <IconButton
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleGantiIsian(item.id, 1);
-                          }}
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            handleSetMax(item.id);
                           }}
                           sx={{ bgcolor: "#ffebee" }}
                         >
@@ -926,7 +1027,7 @@ function App() {
                         </IconButton>
                       </Box>
                     </Card>
-                  </Tooltip>
+                  </motion.div>
                 </Grid>
               ))}
             </Grid>
@@ -936,7 +1037,10 @@ function App() {
                 control={
                   <Checkbox
                     checked={pakeKatsuobushi}
-                    onChange={(e) => setPakeKatsuobushi(e.target.checked)}
+                    onChange={(e) => {
+                      setPakeKatsuobushi(e.target.checked);
+                      playTone("click");
+                    }}
                     color="warning"
                     sx={{ transform: "scale(1.3)", mr: 1 }}
                   />
@@ -1026,22 +1130,24 @@ function App() {
               </Grid>
             </Box>
 
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={tambahKeTemp}
-              disabled={totalButir === 0}
-              sx={{
-                bgcolor: COLORS.primary,
-                borderRadius: 3,
-                height: "60px",
-                fontSize: "1.1rem",
-                fontWeight: "bold",
-              }}
-            >
-              MASUK KERANJANG SEMENTARA (RP{" "}
-              {hitungHargaPorsi().toLocaleString()})
-            </Button>
+            <motion.div whileTap={{ scale: 0.98 }}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={tambahKeTemp}
+                disabled={totalButir === 0 && qtyAir === 0}
+                sx={{
+                  bgcolor: COLORS.primary,
+                  borderRadius: 3,
+                  height: "60px",
+                  fontSize: "1.1rem",
+                  fontWeight: "bold",
+                }}
+              >
+                MASUK KERANJANG SEMENTARA (RP{" "}
+                {hitungHargaPorsi() + qtyAir * 5000})
+              </Button>
+            </motion.div>
           </Paper>
 
           {tempCart.length > 0 && (
@@ -1063,41 +1169,55 @@ function App() {
                 📝 Keranjang Sementara
               </Typography>
               <List dense sx={{ bgcolor: "white", borderRadius: 2, mb: 2 }}>
-                {tempCart.map((item) => (
-                  <ListItem key={item.id} divider>
-                    <ListItemText
-                      primary={
-                        <Typography fontWeight="bold" fontSize="1.2rem">
-                          {item.nama}
-                        </Typography>
-                      }
-                      secondary={
-                        <Typography
-                          variant="body1"
-                          sx={{ fontSize: "1.05rem", color: COLORS.textGrey }}
-                        >
-                          {item.type === "food"
-                            ? `Isi: ${Object.entries(item.detail)
-                                .map(([k, v]) => (v > 0 ? `${k}(${v})` : ""))
-                                .filter(Boolean)
-                                .join(
-                                  ", ",
-                                )} | ${item.katsuobushi ? "Katsuobushi, " : ""}${item.sauses.join(", ")}`
-                            : "Dingin Segar"}
-                        </Typography>
-                      }
-                    />
-                    <ListItemSecondaryAction>
-                      <IconButton
-                        edge="end"
-                        color="error"
-                        onClick={() => hapusDariTemp(item.id)}
-                      >
-                        <Delete fontSize="large" />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
+                <AnimatePresence>
+                  {tempCart.map((item) => (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                    >
+                      <ListItem divider>
+                        <ListItemText
+                          primary={
+                            <Typography fontWeight="bold" fontSize="1.2rem">
+                              {item.nama}
+                            </Typography>
+                          }
+                          secondary={
+                            <Typography
+                              variant="body1"
+                              sx={{
+                                fontSize: "1.05rem",
+                                color: COLORS.textGrey,
+                              }}
+                            >
+                              {item.type === "food"
+                                ? `Isi: ${Object.entries(item.detail)
+                                    .map(([k, v]) =>
+                                      v > 0 ? `${k}(${v})` : "",
+                                    )
+                                    .filter(Boolean)
+                                    .join(
+                                      ", ",
+                                    )} | ${item.katsuobushi ? "Katsuobushi, " : ""}${item.sauses.join(", ")}`
+                                : "Dingin Segar"}
+                            </Typography>
+                          }
+                        />
+                        <ListItemSecondaryAction>
+                          <IconButton
+                            edge="end"
+                            color="error"
+                            onClick={() => hapusDariTemp(item.id)}
+                          >
+                            <Delete fontSize="large" />
+                          </IconButton>
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </List>
 
               <Box
@@ -1117,23 +1237,25 @@ function App() {
                 </Typography>
               </Box>
 
-              <Button
-                fullWidth
-                variant="contained"
-                size="large"
-                onClick={prosesPesananFinal}
-                startIcon={<ShoppingBasket sx={{ fontSize: 30 }} />}
-                sx={{
-                  height: "70px",
-                  borderRadius: 3,
-                  bgcolor: COLORS.textDark,
-                  fontSize: "1.3rem",
-                  fontWeight: "bold",
-                  "&:hover": { bgcolor: "black" },
-                }}
-              >
-                PROSES SEMUA & NEXT (#{nomorAntrian + 1})
-              </Button>
+              <motion.div whileTap={{ scale: 0.98 }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={prosesPesananFinal}
+                  startIcon={<ShoppingBasket sx={{ fontSize: 30 }} />}
+                  sx={{
+                    height: "70px",
+                    borderRadius: 3,
+                    bgcolor: COLORS.textDark,
+                    fontSize: "1.3rem",
+                    fontWeight: "bold",
+                    "&:hover": { bgcolor: "black" },
+                  }}
+                >
+                  PROSES SEMUA & NEXT (#{nomorAntrian + 1})
+                </Button>
+              </motion.div>
               <div ref={bottomRef} />
             </Paper>
           )}
