@@ -12,13 +12,11 @@ import {
   Paper,
   Checkbox,
   FormControlLabel,
-  FormGroup,
   CssBaseline,
   useMediaQuery,
   useTheme,
   Collapse,
   CardActionArea,
-  Tooltip,
   Snackbar,
   Alert,
   TextField,
@@ -27,11 +25,16 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  Dialog,
+  DialogTitle,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  Switch,
 } from "@mui/material";
 import {
   Add,
   Remove,
-  WaterDrop,
   Restaurant,
   CheckCircle,
   AttachMoney,
@@ -41,27 +44,26 @@ import {
   Delete,
   RestartAlt,
   ShoppingBasket,
-  Timer,
+  ContentCopy,
+  Edit,
+  MoneyOff,
+  SaveAs,
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- SOUND ENGINE (WEB AUDIO API - DIJAMIN BUNYI) ---
+// --- SOUND ENGINE ---
 const playTone = (type) => {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return; // Browser jadul banget
-
+    if (!AudioContext) return;
     const ctx = new AudioContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-
     osc.connect(gain);
     gain.connect(ctx.destination);
-
     const now = ctx.currentTime;
 
     if (type === "click") {
-      // Suara "Tick" (High Pitch Short)
       osc.type = "sine";
       osc.frequency.setValueAtTime(800, now);
       osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
@@ -70,16 +72,14 @@ const playTone = (type) => {
       osc.start(now);
       osc.stop(now + 0.1);
     } else if (type === "success") {
-      // Suara "Ting-Ting" (Major Chord Arpeggio)
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.setValueAtTime(880, now + 0.1);
       gain.gain.setValueAtTime(0.2, now);
       gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
       osc.start(now);
       osc.stop(now + 0.4);
     } else if (type === "delete") {
-      // Suara "Buzzer" (Low Sawtooth)
       osc.type = "sawtooth";
       osc.frequency.setValueAtTime(150, now);
       osc.frequency.linearRampToValueAtTime(50, now + 0.2);
@@ -93,7 +93,6 @@ const playTone = (type) => {
   }
 };
 
-// --- KONFIGURASI WARNA (IAN TAKOYAKI) ---
 const COLORS = {
   primary: "#d32f2f",
   secondary: "#f57c00",
@@ -103,6 +102,7 @@ const COLORS = {
   textGrey: "#424242",
   success: "#2e7d32",
   warning: "#ed6c02",
+  info: "#0288d1",
 };
 
 const VARIAN_ISIAN = [
@@ -116,6 +116,31 @@ const VARIAN_ISIAN = [
 
 const SAUS_LIST = ["Saus Sambel", "Saus Tomat", "Mayonaise"];
 
+const getSauceColor = (sausName) => {
+  if (sausName === "Saus Sambel") return "error";
+  if (sausName === "Saus Tomat") return "warning";
+  return "default";
+};
+
+// HELPER: Auto Capitalize Name
+const formatName = (str) => {
+  if (!str) return "";
+  return str.toLowerCase().replace(/\b\w/g, (s) => s.toUpperCase());
+};
+
+// HELPER: Generate String Detail (Misal: "Sosis(2), Keju(3)")
+const getDetailString = (detail) => {
+  if (!detail) return "";
+  return Object.entries(detail)
+    .filter(([_, qty]) => qty > 0)
+    .map(([key, qty]) => {
+      const label = VARIAN_ISIAN.find((v) => v.id === key)?.label || key;
+      // Format jadi: SOSIS(2)
+      return `${label}(${qty})`;
+    })
+    .join(", ");
+};
+
 function App() {
   // --- STATE ---
   const [isian, setIsian] = useState({});
@@ -124,20 +149,26 @@ function App() {
     "Saus Tomat": false,
     Mayonaise: false,
   });
+  const [sausesPisah, setSausesPisah] = useState({
+    "Saus Sambel": false,
+    "Saus Tomat": false,
+    Mayonaise: false,
+  });
+
   const [pakeKatsuobushi, setPakeKatsuobushi] = useState(false);
   const [isCampurMode, setIsCampurMode] = useState(false);
-
   const [qtyAir, setQtyAir] = useState(0);
-
   const [nomorAntrian, setNomorAntrian] = useState(1);
   const [namaPelanggan, setNamaPelanggan] = useState("");
 
   const [tempCart, setTempCart] = useState([]);
   const [masterQueue, setMasterQueue] = useState([]);
+  const [editingCartId, setEditingCartId] = useState(null);
 
-  const [deletingId, setDeletingId] = useState(null);
-  const [countdown, setCountdown] = useState(3);
-
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    noAntrian: null,
+  });
   const [expandedAntrian, setExpandedAntrian] = useState(null);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -150,32 +181,66 @@ function App() {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const bottomRef = useRef(null);
 
-  // --- HELPER ---
+  // --- LOGIC SMART NAMING (FINAL) ---
+  const generateSmartName = (detailIsian) => {
+    const activeKeys = Object.keys(detailIsian).filter(
+      (k) => detailIsian[k] > 0,
+    );
+    const activeLabels = activeKeys.map(
+      (k) => VARIAN_ISIAN.find((v) => v.id === k).label,
+    );
+    const totalVariant = activeKeys.length;
+
+    // DEFINISI "CAMPUR" (5 Sekawan Standar - TANPA GURITA)
+    const standardSet = ["sosis", "cumi", "kepiting", "keju", "kornet"];
+
+    // Logic 0: Polos
+    if (totalVariant === 0) return "Takoyaki Polos";
+
+    // Logic 1: Ada Gurita? -> Langsung sebut manual karena ini menu Tambahan/Premium
+    if (activeKeys.includes("gurita")) {
+      if (totalVariant === 1) return "Takoyaki Full Gurita";
+      return `Takoyaki Isi ${activeLabels.join(", ")}`;
+    }
+
+    // Logic 2: Cek apakah item yang dipilih HANYA dari Standard Set?
+    const isAllStandard = activeKeys.every((k) => standardSet.includes(k));
+
+    if (isAllStandard) {
+      if (totalVariant === 5) return "Takoyaki Campur"; // Full Team
+      // 3 atau 4 Item -> "Takoyaki Campur Tanpa X"
+      if (totalVariant >= 3) {
+        const missingItems = standardSet
+          .filter((k) => !activeKeys.includes(k))
+          .map((k) => VARIAN_ISIAN.find((v) => v.id === k).label);
+        return `Takoyaki Campur Tanpa ${missingItems.join(", ")}`;
+      }
+    }
+
+    // Logic 3: Sisanya (1 atau 2 item) -> Sebut manual
+    return `Takoyaki Isi ${activeLabels.join(", ")}`;
+  };
+
   const getJamSekarang = () =>
     new Date().toLocaleTimeString("id-ID", {
       hour: "2-digit",
       minute: "2-digit",
     });
-  const getNamaFinal = () =>
-    namaPelanggan.trim() === "" ? `Pelanggan #${nomorAntrian}` : namaPelanggan;
 
-  // --- EFFECT: COUNTDOWN LOGIC ---
-  useEffect(() => {
-    let timer;
-    if (deletingId !== null && countdown > 0) {
-      timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    } else if (deletingId !== null && countdown === 0) {
-      setMasterQueue((prev) => prev.filter((p) => p.noAntrian !== deletingId));
-      setDeletingId(null);
-      playTone("success");
-      setSnackbar({
-        open: true,
-        message: "Pesanan Selesai & Dihapus!",
-        severity: "success",
-      });
+  const isGlobalEditMode = tempCart.some((item) => item.targetAntrian);
+  const getTargetQueueNumber = () =>
+    isGlobalEditMode
+      ? tempCart.find((item) => item.targetAntrian).targetAntrian
+      : nomorAntrian;
+
+  const getDisplayNama = () => {
+    if (isGlobalEditMode) {
+      return tempCart.find((item) => item.targetAntrian).targetNama;
     }
-    return () => clearTimeout(timer);
-  }, [countdown, deletingId]);
+    return namaPelanggan.trim() === ""
+      ? `Pelanggan #${nomorAntrian}`
+      : namaPelanggan;
+  };
 
   // --- LOGIC FORM ---
   const handleGantiIsian = (id, delta) => {
@@ -183,7 +248,6 @@ function App() {
     const currentQty = isian[id] || 0;
     if (currentQty + delta < 0) return;
     if (delta > 0 && totalButir >= 5) return;
-
     setIsian({ ...isian, [id]: currentQty + delta });
     if (delta > 0) playTone("click");
   };
@@ -195,7 +259,14 @@ function App() {
   };
 
   const handleSausChange = (saus) => {
-    setSauses({ ...sauses, [saus]: !sauses[saus] });
+    const newState = !sauses[saus];
+    setSauses({ ...sauses, [saus]: newState });
+    if (!newState) setSausesPisah({ ...sausesPisah, [saus]: false });
+    playTone("click");
+  };
+
+  const handleSausPisahChange = (saus) => {
+    setSausesPisah({ ...sausesPisah, [saus]: !sausesPisah[saus] });
     playTone("click");
   };
 
@@ -206,14 +277,27 @@ function App() {
       "Saus Tomat": !allSelected,
       Mayonaise: !allSelected,
     });
+    if (allSelected)
+      setSausesPisah({
+        "Saus Sambel": false,
+        "Saus Tomat": false,
+        Mayonaise: false,
+      });
     playTone("click");
   };
 
   const resetFormTakoyaki = () => {
     setIsian({});
     setSauses({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
+    setSausesPisah({
+      "Saus Sambel": false,
+      "Saus Tomat": false,
+      Mayonaise: false,
+    });
     setPakeKatsuobushi(false);
     setIsCampurMode(false);
+    setQtyAir(0);
+    setEditingCartId(null);
     playTone("delete");
   };
 
@@ -222,16 +306,98 @@ function App() {
     return isian["gurita"] === 5 ? 20000 : 15000;
   };
 
-  // --- LOGIC UNIFIED ADD TO CART ---
-  const tambahKeTemp = () => {
-    let itemsAdded = false;
+  const loadCartItemToForm = (item) => {
+    resetFormTakoyaki();
+    setEditingCartId(item.id);
 
-    // 1. PROSES AIR MINERAL
+    if (item.type === "drink") {
+      setQtyAir(item.qty);
+    } else {
+      setIsian(item.detail);
+      setPakeKatsuobushi(item.katsuobushi);
+      const newSauses = {
+        "Saus Sambel": false,
+        "Saus Tomat": false,
+        Mayonaise: false,
+      };
+      item.sauses.forEach((s) => (newSauses[s] = true));
+      setSauses(newSauses);
+      const newSausesPisah = {
+        "Saus Sambel": false,
+        "Saus Tomat": false,
+        Mayonaise: false,
+      };
+      if (item.sausesPisah)
+        item.sausesPisah.forEach((s) => (newSausesPisah[s] = true));
+      setSausesPisah(newSausesPisah);
+    }
+    setSnackbar({
+      open: true,
+      message: "Item dimuat ke Form. Silakan ubah & Update.",
+      severity: "info",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCartAction = () => {
+    if (editingCartId) {
+      const updatedCart = tempCart.map((item) => {
+        if (item.id === editingCartId) {
+          if (qtyAir > 0) {
+            return {
+              ...item,
+              nama: `Air Mineral (${qtyAir}x)`,
+              type: "drink",
+              qty: qtyAir,
+              harga: 5000 * qtyAir,
+              detail: {},
+              sauses: [],
+              katsuobushi: false,
+            };
+          } else if (totalButir > 0) {
+            const smartName = generateSmartName(isian);
+            return {
+              ...item,
+              nama: smartName,
+              type: "food",
+              qty: 1,
+              detail: isian,
+              sauses: Object.keys(sauses).filter((key) => sauses[key]),
+              sausesPisah: Object.keys(sausesPisah).filter(
+                (key) => sausesPisah[key],
+              ),
+              katsuobushi: pakeKatsuobushi,
+              harga: hitungHargaPorsi(),
+            };
+          }
+        }
+        return item;
+      });
+      setTempCart(updatedCart);
+      resetFormTakoyaki();
+      setSnackbar({
+        open: true,
+        message: "Item Keranjang Berhasil Di-Update!",
+        severity: "success",
+      });
+      playTone("success");
+      return;
+    }
+
+    let itemsAdded = false;
+    const existingEditContext = tempCart.find((t) => t.targetAntrian);
+    const contextAntrian = existingEditContext
+      ? existingEditContext.targetAntrian
+      : null;
+    const contextNama = existingEditContext
+      ? existingEditContext.targetNama
+      : null;
+
     if (qtyAir > 0) {
       const existingWaterIndex = tempCart.findIndex(
         (item) => item.type === "drink",
       );
-      if (existingWaterIndex !== -1) {
+      if (existingWaterIndex !== -1 && !editingCartId) {
         const updatedCart = [...tempCart];
         const oldItem = updatedCart[existingWaterIndex];
         const newQty = oldItem.qty + qtyAir;
@@ -250,37 +416,37 @@ function App() {
           qty: qtyAir,
           detail: {},
           sauses: [],
+          sausesPisah: [],
           harga: 5000 * qtyAir,
+          targetAntrian: contextAntrian,
+          targetNama: contextNama,
         };
         setTempCart((prev) => [...prev, itemAir]);
       }
       itemsAdded = true;
     }
 
-    // 2. PROSES TAKOYAKI
     if (totalButir > 0) {
-      let namaMenu = "Takoyaki Custom";
-      if (isCampurMode) namaMenu = "Takoyaki Campur";
-      else if (isian["gurita"] === 5) namaMenu = "Takoyaki Full Gurita";
-
+      const smartName = generateSmartName(isian);
       const itemTako = {
         id: Date.now(),
-        nama: namaMenu,
+        nama: smartName,
         type: "food",
         qty: 1,
         detail: isian,
         sauses: Object.keys(sauses).filter((key) => sauses[key]),
+        sausesPisah: Object.keys(sausesPisah).filter((key) => sausesPisah[key]),
         katsuobushi: pakeKatsuobushi,
         harga: hitungHargaPorsi(),
+        targetAntrian: contextAntrian,
+        targetNama: contextNama,
       };
-
       setTempCart((prev) => [...prev, itemTako]);
       itemsAdded = true;
     }
 
     if (itemsAdded) {
       resetFormTakoyaki();
-      setQtyAir(0);
       playTone("success");
       setTimeout(
         () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
@@ -289,42 +455,87 @@ function App() {
     } else {
       setSnackbar({
         open: true,
-        message: "Isi pesanan dulu ya! (Takoyaki atau Air)",
+        message: "Isi pesanan dulu ya!",
         severity: "warning",
       });
     }
   };
 
+  const duplicateItem = (originalItem) => {
+    const newItem = { ...originalItem, id: Date.now() };
+    if (originalItem.type === "drink") {
+      const existingWaterIndex = tempCart.findIndex(
+        (item) => item.type === "drink",
+      );
+      const updatedCart = [...tempCart];
+      const oldItem = updatedCart[existingWaterIndex];
+      const newQty = oldItem.qty + originalItem.qty;
+      updatedCart[existingWaterIndex] = {
+        ...oldItem,
+        qty: newQty,
+        nama: `Air Mineral (${newQty}x)`,
+        harga: 5000 * newQty,
+      };
+      setTempCart(updatedCart);
+    } else {
+      setTempCart([...tempCart, newItem]);
+    }
+    playTone("success");
+  };
+
   const hapusDariTemp = (id) => {
     setTempCart(tempCart.filter((item) => item.id !== id));
+    if (editingCartId === id) resetFormTakoyaki();
     playTone("delete");
   };
 
   const prosesPesananFinal = () => {
     if (tempCart.length === 0) return;
+    const isEditMode = tempCart.some((item) => item.targetAntrian);
+    const finalNoAntrian = isEditMode
+      ? tempCart.find((item) => item.targetAntrian).targetAntrian
+      : nomorAntrian;
+
+    // FORMAT NAMA: Auto Capitalize
+    let rawNama = isEditMode
+      ? tempCart.find((item) => item.targetAntrian).targetNama
+      : namaPelanggan;
+    if (!isEditMode && rawNama.trim() === "")
+      rawNama = `Pelanggan #${nomorAntrian}`;
+    const finalNamaPemesan = formatName(rawNama);
+
     const finalItems = tempCart.map((draft) => ({
       ...draft,
-      noAntrian: nomorAntrian,
-      namaPemesan: getNamaFinal(),
+      noAntrian: finalNoAntrian,
+      namaPemesan: finalNamaPemesan,
       jamMasuk: getJamSekarang(),
       statusMasak: "dibuat",
       statusBayar: "belum",
+      targetAntrian: undefined,
+      targetNama: undefined,
     }));
 
-    setMasterQueue([...finalItems, ...masterQueue]);
-    setSnackbar({
-      open: true,
-      message: `Pesanan Antrian #${nomorAntrian} Masuk Dapur!`,
-      severity: "success",
-    });
+    setMasterQueue([...masterQueue, ...finalItems]);
+
+    if (isEditMode) {
+      setSnackbar({
+        open: true,
+        message: `Pesanan #${finalNoAntrian} Berhasil Di-Update Lengkap!`,
+        severity: "success",
+      });
+    } else {
+      setSnackbar({
+        open: true,
+        message: `Pesanan Baru #${finalNoAntrian} Masuk Dapur!`,
+        severity: "success",
+      });
+      setNomorAntrian((prev) => prev + 1);
+      setNamaPelanggan("");
+    }
     setTempCart([]);
-    setNomorAntrian((prev) => prev + 1);
-    setNamaPelanggan("");
-    setExpandedAntrian(nomorAntrian);
     playTone("success");
   };
 
-  // --- LOGIC DAPUR ---
   const groupedOrders = masterQueue.reduce((acc, item) => {
     if (!acc[item.noAntrian]) {
       acc[item.noAntrian] = {
@@ -339,9 +550,8 @@ function App() {
     acc[item.noAntrian].totalTagihan += item.harga;
     return acc;
   }, {});
-
   const sortedGroups = Object.values(groupedOrders).sort(
-    (a, b) => b.noAntrian - a.noAntrian,
+    (a, b) => a.noAntrian - b.noAntrian,
   );
 
   const toggleStatusMasakItem = (item) => {
@@ -358,49 +568,135 @@ function App() {
     playTone("click");
   };
 
-  const hapusDariMaster = (itemId) => {
-    setMasterQueue((prev) => prev.filter((p) => p.id !== itemId));
-    playTone("delete");
-  };
-
   const handleBayarLunasGroup = (noAntrian) => {
+    const groupItems = masterQueue.filter((p) => p.noAntrian === noAntrian);
+    const isCurrentlyLunas = groupItems.every((p) => p.statusBayar === "lunas");
+    const newStatus = isCurrentlyLunas ? "belum" : "lunas";
     setMasterQueue((prev) =>
       prev.map((p) =>
-        p.noAntrian === noAntrian ? { ...p, statusBayar: "lunas" } : p,
+        p.noAntrian === noAntrian ? { ...p, statusBayar: newStatus } : p,
       ),
+    );
+
+    if (newStatus === "lunas") {
+      setSnackbar({
+        open: true,
+        message: "Pembayaran LUNAS! ✅",
+        severity: "success",
+      });
+      playTone("success");
+    } else {
+      setSnackbar({
+        open: true,
+        message: "Status Pembayaran Dibatalkan ❌",
+        severity: "info",
+      });
+      playTone("click");
+    }
+  };
+
+  const editPesananFullBatch = (noAntrian, namaPemesan) => {
+    const itemsToEdit = masterQueue.filter(
+      (item) => item.noAntrian === noAntrian,
+    );
+    const draftItems = itemsToEdit.map((item) => ({
+      id: Date.now() + Math.random(),
+      nama: item.nama,
+      type: item.type,
+      qty: item.qty,
+      detail: item.detail,
+      sauses: item.sauses,
+      sausesPisah: item.sausesPisah || [],
+      katsuobushi: item.katsuobushi,
+      harga: item.harga,
+      targetAntrian: noAntrian,
+      targetNama: namaPemesan,
+    }));
+    setTempCart((prev) => [...prev, ...draftItems]);
+    setMasterQueue((prev) =>
+      prev.filter((item) => item.noAntrian !== noAntrian),
     );
     setSnackbar({
       open: true,
-      message: "Pembayaran LUNAS! ✅",
-      severity: "success",
+      message: `Semua pesanan #${noAntrian} ditarik ke Keranjang!`,
+      severity: "info",
     });
-    playTone("success");
   };
 
-  const startDeleteSequence = (noAntrian) => {
+  const requestFinishOrder = (noAntrian) => {
     const groupItems = masterQueue.filter((p) => p.noAntrian === noAntrian);
     const isLunas = groupItems.every((p) => p.statusBayar === "lunas");
-
     if (!isLunas) {
       setSnackbar({
         open: true,
-        message: "⚠️ Pesanan belum LUNAS! Tagih dulu ya.",
+        message: "⚠️ Tagih dulu bos! Belum Lunas.",
         severity: "warning",
       });
       playTone("delete");
       return;
     }
-
-    setCountdown(3);
-    setDeletingId(noAntrian);
+    setConfirmDialog({ open: true, noAntrian: noAntrian });
   };
 
-  const cancelDelete = () => {
-    setDeletingId(null);
-    setCountdown(3);
+  const executeFinishOrder = () => {
+    if (confirmDialog.noAntrian) {
+      setMasterQueue((prev) =>
+        prev.filter((p) => p.noAntrian !== confirmDialog.noAntrian),
+      );
+      playTone("success");
+      setSnackbar({
+        open: true,
+        message: "Pesanan Selesai Disajikan!",
+        severity: "success",
+      });
+    }
+    setConfirmDialog({ open: false, noAntrian: null });
   };
 
-  // --- RENDER ---
+  const renderSauceChips = (sauses, sausesPisah) => {
+    if (!sauses || sauses.length === 0)
+      return (
+        <Typography variant="caption" color="text.secondary">
+          Tanpa Saus
+        </Typography>
+      );
+    const allSeparated = sauses.every(
+      (s) => sausesPisah && sausesPisah.includes(s),
+    );
+    if (allSeparated) {
+      return (
+        <Chip
+          label="SEMUA SAUS DIPISAH"
+          size="small"
+          sx={{
+            bgcolor: COLORS.info,
+            color: "white",
+            fontWeight: "bold",
+            fontSize: "0.75rem",
+          }}
+        />
+      );
+    }
+    return (
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+        {sauses.map((saus) => {
+          const isPisah = sausesPisah && sausesPisah.includes(saus);
+          const color = getSauceColor(saus);
+          return (
+            <Chip
+              key={saus}
+              label={`${saus}${isPisah ? " (PISAH)" : ""}`}
+              size="small"
+              color={color}
+              variant={isPisah ? "outlined" : "filled"}
+              sx={{ fontWeight: "bold", fontSize: "0.7rem", height: "24px" }}
+            />
+          );
+        })}
+      </Box>
+    );
+  };
+
   return (
     <>
       <CssBaseline />
@@ -419,6 +715,57 @@ function App() {
         </Alert>
       </Snackbar>
 
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, noAntrian: null })}
+        PaperProps={{ sx: { borderRadius: 4, p: 1, minWidth: "300px" } }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: "bold",
+            textAlign: "center",
+            fontSize: "1.2rem",
+            color: COLORS.primary,
+          }}
+        >
+          Selesaikan Pesanan #{confirmDialog.noAntrian}?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ textAlign: "center", fontWeight: "bold" }}>
+            Pastikan pesanan sudah diberikan ke pelanggan.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "center", gap: 2, mb: 1 }}>
+          <Button
+            onClick={() => setConfirmDialog({ open: false, noAntrian: null })}
+            color="inherit"
+            variant="outlined"
+            sx={{
+              borderRadius: 3,
+              px: 3,
+              fontWeight: "bold",
+              textTransform: "none",
+            }}
+          >
+            Batal
+          </Button>
+          <Button
+            onClick={executeFinishOrder}
+            variant="contained"
+            autoFocus
+            sx={{
+              borderRadius: 3,
+              px: 4,
+              bgcolor: COLORS.secondary,
+              fontWeight: "bold",
+              textTransform: "none",
+            }}
+          >
+            Ya, Selesai
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Box
         sx={{
           display: "flex",
@@ -429,7 +776,7 @@ function App() {
           bgcolor: COLORS.background,
         }}
       >
-        {/* === KOLOM KIRI: DAFTAR PESANAN (DAPUR) === */}
+        {/* === KOLOM KIRI: DAFTAR PESANAN === */}
         <Box
           sx={{
             width: isMobile ? "100%" : "45%",
@@ -469,7 +816,6 @@ function App() {
               Antrian: {sortedGroups.length}
             </Typography>
           </Box>
-
           <Box
             sx={{ flexGrow: 1, overflowY: "auto", p: 2, bgcolor: "#fff3e0" }}
           >
@@ -490,10 +836,10 @@ function App() {
                   color={COLORS.primary}
                   fontWeight="bold"
                 >
-                  Belum ada pesanan masuk nih
+                  Dapur Kosong
                 </Typography>
                 <Typography variant="h6" color="text.secondary">
-                  Yuk siap-siap masak! 🐙
+                  Siap menerima pesanan baru!
                 </Typography>
               </Box>
             ) : (
@@ -503,53 +849,36 @@ function App() {
                     const isAllLunas = group.items.every(
                       (i) => i.statusBayar === "lunas",
                     );
-                    const isDeleting = deletingId === group.noAntrian;
+                    const isExpanded = expandedAntrian === group.noAntrian;
 
                     return (
                       <motion.div
                         key={group.noAntrian}
                         layout
-                        initial={{ opacity: 0, x: -50 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{
-                          opacity: 0,
-                          x: 50,
-                          transition: { duration: 0.3 },
-                        }}
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: -50 }}
                       >
                         <Card
                           elevation={3}
                           sx={{
                             borderRadius: 3,
-                            border: isDeleting
-                              ? `4px solid ${COLORS.warning}`
-                              : isAllLunas
-                                ? `2px solid ${COLORS.success}`
-                                : `2px solid ${COLORS.primary}`,
-                            bgcolor: isDeleting
-                              ? "#fff3e0"
-                              : isAllLunas
-                                ? "#c8e6c9"
-                                : "white",
+                            border: isAllLunas
+                              ? `2px solid ${COLORS.success}`
+                              : `2px solid ${COLORS.primary}`,
+                            bgcolor: isAllLunas ? "#c8e6c9" : "white",
                             transition: "all 0.3s",
-                            transform: isDeleting ? "scale(0.98)" : "scale(1)",
-                            opacity: isDeleting ? 0.8 : 1,
                           }}
                         >
                           <CardActionArea
                             onClick={() =>
                               setExpandedAntrian(
-                                expandedAntrian === group.noAntrian
-                                  ? null
-                                  : group.noAntrian,
+                                isExpanded ? null : group.noAntrian,
                               )
                             }
                             sx={{
                               p: 2.5,
-                              bgcolor:
-                                isAllLunas && !isDeleting
-                                  ? "#e8f5e9"
-                                  : "inherit",
+                              bgcolor: isAllLunas ? "#e8f5e9" : "inherit",
                             }}
                           >
                             <Box
@@ -609,11 +938,50 @@ function App() {
                                 )}
                               </Box>
                             </Box>
+
+                            {/* PREVIEW AREA (MINI RECEIPT DENGAN DETAIL) */}
+                            {!isExpanded && (
+                              <Box
+                                sx={{
+                                  mt: 1.5,
+                                  bgcolor: "rgba(0,0,0,0.04)",
+                                  p: 1,
+                                  borderRadius: 2,
+                                }}
+                              >
+                                {group.items.map((item, idx) => (
+                                  <Box key={idx} sx={{ mb: 0.5 }}>
+                                    <Typography
+                                      variant="body2"
+                                      color="text.primary"
+                                      sx={{
+                                        fontWeight: 600,
+                                        fontSize: "0.9rem",
+                                        lineHeight: 1.3,
+                                      }}
+                                    >
+                                      • <b>{item.qty}x</b> {item.nama}
+                                    </Typography>
+                                    {/* Tampilkan Detail jika Food */}
+                                    {item.type === "food" && (
+                                      <Typography
+                                        variant="caption"
+                                        color="text.secondary"
+                                        sx={{
+                                          display: "block",
+                                          ml: 2,
+                                          fontStyle: "italic",
+                                        }}
+                                      >
+                                        {getDetailString(item.detail)}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
                           </CardActionArea>
-                          <Collapse
-                            in={expandedAntrian === group.noAntrian}
-                            unmountOnExit
-                          >
+                          <Collapse in={isExpanded} unmountOnExit>
                             <Box sx={{ bgcolor: "#fff" }}>
                               {group.items.map((item) => (
                                 <Box
@@ -648,34 +1016,34 @@ function App() {
                                       {item.nama}
                                     </Typography>
                                     {item.type === "food" && (
-                                      <Typography
-                                        variant="body1"
-                                        sx={{
-                                          color: COLORS.textGrey,
-                                          fontSize: "1.05rem",
-                                          mt: 0.5,
-                                          lineHeight: 1.4,
-                                        }}
-                                      >
-                                        {Object.entries(item.detail)
-                                          .map(([k, v]) =>
-                                            v > 0 ? `${k}(${v})` : "",
-                                          )
-                                          .filter(Boolean)
-                                          .join(", ")}
-                                        <br />
-                                        <span
-                                          style={{
-                                            color: COLORS.primary,
-                                            fontWeight: 500,
-                                          }}
+                                      <Box mt={0.5}>
+                                        {/* RINCIAN JUMLAH ISIAN (PENTING BUAT KOKI) */}
+                                        <Typography
+                                          variant="body2"
+                                          color="primary"
+                                          sx={{ fontWeight: "bold", mb: 0.5 }}
                                         >
-                                          {item.sauses.join(", ")}
-                                          {item.katsuobushi
-                                            ? ", Katsuobushi"
-                                            : ""}
-                                        </span>
-                                      </Typography>
+                                          {getDetailString(item.detail)}
+                                        </Typography>
+
+                                        {item.katsuobushi && (
+                                          <Chip
+                                            label="Pake Katsuobushi"
+                                            size="small"
+                                            sx={{
+                                              bgcolor: COLORS.warning,
+                                              color: "white",
+                                              fontWeight: "bold",
+                                              mb: 0.5,
+                                              mr: 1,
+                                            }}
+                                          />
+                                        )}
+                                        {renderSauceChips(
+                                          item.sauses,
+                                          item.sausesPisah,
+                                        )}
+                                      </Box>
                                     )}
                                   </Box>
                                   <Box
@@ -695,12 +1063,6 @@ function App() {
                                     >
                                       <CheckCircle sx={{ fontSize: 32 }} />
                                     </IconButton>
-                                    <IconButton
-                                      color="error"
-                                      onClick={() => hapusDariMaster(item.id)}
-                                    >
-                                      <Delete sx={{ fontSize: 32 }} />
-                                    </IconButton>
                                   </Box>
                                 </Box>
                               ))}
@@ -713,6 +1075,27 @@ function App() {
                                   gap: 1,
                                 }}
                               >
+                                {!isAllLunas && (
+                                  <Button
+                                    fullWidth
+                                    variant="outlined"
+                                    size="large"
+                                    onClick={() =>
+                                      editPesananFullBatch(
+                                        group.noAntrian,
+                                        group.namaPemesan,
+                                      )
+                                    }
+                                    startIcon={<Edit />}
+                                    sx={{
+                                      color: COLORS.textDark,
+                                      borderColor: COLORS.textDark,
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    EDIT SEMUA
+                                  </Button>
+                                )}
                                 <Button
                                   fullWidth
                                   variant="contained"
@@ -721,48 +1104,30 @@ function App() {
                                   onClick={() =>
                                     handleBayarLunasGroup(group.noAntrian)
                                   }
-                                  startIcon={<AttachMoney />}
-                                  disabled={isAllLunas}
+                                  startIcon={
+                                    isAllLunas ? <MoneyOff /> : <AttachMoney />
+                                  }
                                   sx={{ fontSize: "1rem", fontWeight: "bold" }}
                                 >
-                                  {isAllLunas ? "LUNAS" : "BAYAR SEMUA"}
+                                  {isAllLunas ? "BATAL LUNAS" : "BAYAR SEMUA"}
                                 </Button>
-
-                                {isDeleting ? (
-                                  <Button
-                                    fullWidth
-                                    variant="contained"
-                                    size="large"
-                                    sx={{
-                                      bgcolor: COLORS.warning,
-                                      color: "white",
-                                      fontSize: "1rem",
-                                      fontWeight: "bold",
-                                    }}
-                                    onClick={cancelDelete}
-                                    startIcon={<Timer />}
-                                  >
-                                    BATALKAN ({countdown})
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    fullWidth
-                                    variant="contained"
-                                    size="large"
-                                    sx={{
-                                      bgcolor: COLORS.secondary,
-                                      color: "white",
-                                      fontSize: "1rem",
-                                      fontWeight: "bold",
-                                    }}
-                                    onClick={() =>
-                                      startDeleteSequence(group.noAntrian)
-                                    }
-                                    startIcon={<Kitchen />}
-                                  >
-                                    SELESAI SAJIKAN
-                                  </Button>
-                                )}
+                                <Button
+                                  fullWidth
+                                  variant="contained"
+                                  size="large"
+                                  sx={{
+                                    bgcolor: COLORS.secondary,
+                                    color: "white",
+                                    fontSize: "1rem",
+                                    fontWeight: "bold",
+                                  }}
+                                  onClick={() =>
+                                    requestFinishOrder(group.noAntrian)
+                                  }
+                                  startIcon={<Kitchen />}
+                                >
+                                  SELESAI
+                                </Button>
                               </Box>
                             </Box>
                           </Collapse>
@@ -776,7 +1141,7 @@ function App() {
           </Box>
         </Box>
 
-        {/* === KOLOM KANAN: INPUT & DRAFT === */}
+        {/* === KOLOM KANAN: INPUT & KERANJANG === */}
         <Box
           sx={{
             flexGrow: 1,
@@ -792,7 +1157,10 @@ function App() {
             color={COLORS.textDark}
             sx={{ mb: 2, display: "flex", alignItems: "center" }}
           >
-            🐙 Buat Pesanan Baru
+            🐙{" "}
+            {isGlobalEditMode
+              ? `Edit Pesanan #${getTargetQueueNumber()}`
+              : "Buat Pesanan Baru"}
           </Typography>
 
           <Paper
@@ -809,9 +1177,10 @@ function App() {
               fullWidth
               label="Nama Pelanggan (Opsional)"
               variant="outlined"
-              value={namaPelanggan}
+              value={isGlobalEditMode ? getDisplayNama() : namaPelanggan}
               onChange={(e) => setNamaPelanggan(e.target.value)}
-              placeholder={`Pelanggan #${nomorAntrian}`}
+              placeholder={`Pelanggan #${getTargetQueueNumber()}`}
+              disabled={isGlobalEditMode}
               InputLabelProps={{ style: { fontSize: "1.2rem" } }}
               InputProps={{
                 startAdornment: (
@@ -831,14 +1200,31 @@ function App() {
                 fontWeight: "bold",
               }}
             >
-              *Mengisi untuk Antrian #{nomorAntrian}
+              *Mengisi untuk Antrian #{getTargetQueueNumber()}
             </Typography>
           </Paper>
 
           <Paper
             elevation={0}
-            sx={{ p: 2, mb: 2, borderRadius: 4, bgcolor: "white" }}
+            sx={{
+              p: 2,
+              mb: 2,
+              borderRadius: 4,
+              bgcolor: "white",
+              border: editingCartId ? `3px solid ${COLORS.info}` : "none",
+            }}
           >
+            {editingCartId && (
+              <Alert
+                severity="info"
+                sx={{ mb: 2, fontWeight: "bold" }}
+                onClose={() => {
+                  resetFormTakoyaki();
+                }}
+              >
+                Sedang mengedit item dari Keranjang... (Klik X untuk Batal)
+              </Alert>
+            )}
             <Grid container spacing={2} mb={3}>
               <Grid item xs={6}>
                 <motion.div whileTap={{ scale: 0.95 }}>
@@ -899,7 +1285,6 @@ function App() {
                 </Box>
               </Grid>
             </Grid>
-
             <Box
               display="flex"
               justifyContent="space-between"
@@ -927,8 +1312,6 @@ function App() {
                 Reset Pilihan
               </Button>
             </Box>
-
-            {/* GRID KARTU ISIAN (TANPA TOMBOL MAX) */}
             <Grid container spacing={1} mb={3}>
               {VARIAN_ISIAN.map((item) => (
                 <Grid item xs={4} key={item.id}>
@@ -981,7 +1364,6 @@ function App() {
                           {item.label}
                         </Typography>
                       </Box>
-
                       <Box
                         height="30px"
                         display="flex"
@@ -1002,7 +1384,6 @@ function App() {
                         >
                           <Remove />
                         </IconButton>
-
                         <Typography
                           sx={{
                             fontWeight: "bold",
@@ -1014,7 +1395,6 @@ function App() {
                         >
                           {isian[item.id]}
                         </Typography>
-
                         <IconButton
                           size="small"
                           onClick={(e) => {
@@ -1031,7 +1411,6 @@ function App() {
                 </Grid>
               ))}
             </Grid>
-
             <Box mb={3}>
               <FormControlLabel
                 control={
@@ -1090,62 +1469,87 @@ function App() {
               <Grid container spacing={1}>
                 {SAUS_LIST.map((saus) => (
                   <Grid item xs={4} key={saus}>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={sauses[saus]}
-                          onChange={() => handleSausChange(saus)}
-                          sx={{
-                            color: COLORS.secondary,
-                            "&.Mui-checked": { color: COLORS.primary },
-                            transform: "scale(1.1)",
-                          }}
-                        />
-                      }
-                      label={
-                        <Typography
-                          variant="body2"
-                          fontWeight="bold"
-                          sx={{ fontSize: "0.95rem", lineHeight: 1.1 }}
-                        >
-                          {saus}
-                        </Typography>
-                      }
+                    <Box
                       sx={{
-                        m: 0,
-                        width: "100%",
                         border: sauses[saus]
                           ? `2px solid ${COLORS.primary}`
                           : "1px solid #ddd",
                         borderRadius: 2,
-                        p: 1,
+                        p: 0.5,
                         bgcolor: sauses[saus] ? "#ffebee" : "transparent",
-                        alignItems: "center",
-                        justifyContent: "center",
                         height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
                       }}
-                    />
+                    >
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={sauses[saus]}
+                            onChange={() => handleSausChange(saus)}
+                            sx={{
+                              p: 0.5,
+                              color: COLORS.secondary,
+                              "&.Mui-checked": { color: COLORS.primary },
+                            }}
+                          />
+                        }
+                        label={
+                          <Typography
+                            variant="body2"
+                            fontWeight="bold"
+                            sx={{ fontSize: "0.85rem", lineHeight: 1 }}
+                          >
+                            {saus}
+                          </Typography>
+                        }
+                        sx={{ m: 0, width: "100%", justifyContent: "center" }}
+                      />
+                      {sauses[saus] && (
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              size="small"
+                              checked={sausesPisah[saus]}
+                              onChange={() => handleSausPisahChange(saus)}
+                              color="error"
+                            />
+                          }
+                          label={
+                            <Typography
+                              variant="caption"
+                              color="error"
+                              fontWeight="bold"
+                            >
+                              Pisah
+                            </Typography>
+                          }
+                          sx={{ m: 0 }}
+                        />
+                      )}
+                    </Box>
                   </Grid>
                 ))}
               </Grid>
             </Box>
-
             <motion.div whileTap={{ scale: 0.98 }}>
               <Button
                 fullWidth
                 variant="contained"
-                onClick={tambahKeTemp}
+                onClick={handleCartAction}
                 disabled={totalButir === 0 && qtyAir === 0}
                 sx={{
-                  bgcolor: COLORS.primary,
+                  bgcolor: editingCartId ? COLORS.info : COLORS.primary,
                   borderRadius: 3,
                   height: "60px",
                   fontSize: "1.1rem",
                   fontWeight: "bold",
                 }}
               >
-                MASUK KERANJANG SEMENTARA (RP{" "}
-                {hitungHargaPorsi() + qtyAir * 5000})
+                {editingCartId
+                  ? "UPDATE ITEM INI (SIMPAN)"
+                  : `MASUK KERANJANG PESANAN (RP ${(hitungHargaPorsi() + qtyAir * 5000).toLocaleString()})`}
               </Button>
             </motion.div>
           </Paper>
@@ -1166,7 +1570,10 @@ function App() {
                 color={COLORS.textDark}
                 gutterBottom
               >
-                📝 Keranjang Sementara
+                📝{" "}
+                {isGlobalEditMode
+                  ? `Edit Pesanan #${getTargetQueueNumber()}`
+                  : "Keranjang Pesanan"}
               </Typography>
               <List dense sx={{ bgcolor: "white", borderRadius: 2, mb: 2 }}>
                 <AnimatePresence>
@@ -1177,7 +1584,15 @@ function App() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
                     >
-                      <ListItem divider>
+                      <ListItem
+                        divider
+                        sx={{
+                          bgcolor:
+                            editingCartId === item.id
+                              ? "#e3f2fd"
+                              : "transparent",
+                        }}
+                      >
                         <ListItemText
                           primary={
                             <Typography fontWeight="bold" fontSize="1.2rem">
@@ -1192,20 +1607,56 @@ function App() {
                                 color: COLORS.textGrey,
                               }}
                             >
-                              {item.type === "food"
-                                ? `Isi: ${Object.entries(item.detail)
-                                    .map(([k, v]) =>
-                                      v > 0 ? `${k}(${v})` : "",
-                                    )
-                                    .filter(Boolean)
-                                    .join(
-                                      ", ",
-                                    )} | ${item.katsuobushi ? "Katsuobushi, " : ""}${item.sauses.join(", ")}`
-                                : "Dingin Segar"}
+                              {item.type === "food" ? (
+                                <>
+                                  {/* DETAIL ISIAN DITAMPILKAN DI SINI */}
+                                  <span
+                                    style={{
+                                      color: COLORS.primary,
+                                      fontWeight: "bold",
+                                      display: "block",
+                                      marginBottom: "2px",
+                                    }}
+                                  >
+                                    {getDetailString(item.detail)}
+                                  </span>
+                                  {item.katsuobushi && (
+                                    <Chip
+                                      label="Katsuobushi"
+                                      size="small"
+                                      sx={{
+                                        bgcolor: COLORS.warning,
+                                        color: "white",
+                                        mr: 1,
+                                      }}
+                                    />
+                                  )}
+                                  {renderSauceChips(
+                                    item.sauses,
+                                    item.sausesPisah,
+                                  )}
+                                </>
+                              ) : (
+                                "Dingin Segar"
+                              )}
                             </Typography>
                           }
                         />
                         <ListItemSecondaryAction>
+                          <IconButton
+                            onClick={() => loadCartItemToForm(item)}
+                            color="primary"
+                            sx={{ mr: 1 }}
+                          >
+                            <Edit />
+                          </IconButton>
+                          <IconButton
+                            onClick={() => duplicateItem(item)}
+                            color="default"
+                            sx={{ mr: 1 }}
+                          >
+                            <ContentCopy />
+                          </IconButton>
                           <IconButton
                             edge="end"
                             color="error"
@@ -1219,7 +1670,6 @@ function App() {
                   ))}
                 </AnimatePresence>
               </List>
-
               <Box
                 display="flex"
                 justifyContent="space-between"
@@ -1236,14 +1686,20 @@ function App() {
                   {tempCart.reduce((a, b) => a + b.harga, 0).toLocaleString()}
                 </Typography>
               </Box>
-
               <motion.div whileTap={{ scale: 0.98 }}>
                 <Button
                   fullWidth
                   variant="contained"
                   size="large"
                   onClick={prosesPesananFinal}
-                  startIcon={<ShoppingBasket sx={{ fontSize: 30 }} />}
+                  startIcon={
+                    editingCartId ? (
+                      <SaveAs sx={{ fontSize: 30 }} />
+                    ) : (
+                      <ShoppingBasket sx={{ fontSize: 30 }} />
+                    )
+                  }
+                  disabled={!!editingCartId}
                   sx={{
                     height: "70px",
                     borderRadius: 3,
@@ -1253,8 +1709,20 @@ function App() {
                     "&:hover": { bgcolor: "black" },
                   }}
                 >
-                  PROSES SEMUA & NEXT (#{nomorAntrian + 1})
+                  {isGlobalEditMode
+                    ? `SIMPAN PERUBAHAN #${getTargetQueueNumber()}`
+                    : `PROSES SEMUA & NEXT (#${nomorAntrian})`}
                 </Button>
+                {editingCartId && (
+                  <Typography
+                    variant="caption"
+                    color="error"
+                    align="center"
+                    display="block"
+                  >
+                    Selesaikan edit item dulu sebelum proses.
+                  </Typography>
+                )}
               </motion.div>
               <div ref={bottomRef} />
             </Paper>
