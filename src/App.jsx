@@ -128,14 +128,13 @@ const formatName = (str) => {
   return str.toLowerCase().replace(/\b\w/g, (s) => s.toUpperCase());
 };
 
-// HELPER: Generate String Detail (Misal: "Sosis(2), Keju(3)")
+// HELPER: Generate String Detail
 const getDetailString = (detail) => {
   if (!detail) return "";
   return Object.entries(detail)
     .filter(([_, qty]) => qty > 0)
     .map(([key, qty]) => {
       const label = VARIAN_ISIAN.find((v) => v.id === key)?.label || key;
-      // Format jadi: SOSIS(2)
       return `${label}(${qty})`;
     })
     .join(", ");
@@ -181,7 +180,7 @@ function App() {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const bottomRef = useRef(null);
 
-  // --- LOGIC SMART NAMING (FINAL) ---
+  // --- LOGIC SMART NAMING ---
   const generateSmartName = (detailIsian) => {
     const activeKeys = Object.keys(detailIsian).filter(
       (k) => detailIsian[k] > 0,
@@ -190,25 +189,16 @@ function App() {
       (k) => VARIAN_ISIAN.find((v) => v.id === k).label,
     );
     const totalVariant = activeKeys.length;
-
-    // DEFINISI "CAMPUR" (5 Sekawan Standar - TANPA GURITA)
     const standardSet = ["sosis", "cumi", "kepiting", "keju", "kornet"];
 
-    // Logic 0: Polos
     if (totalVariant === 0) return "Takoyaki Polos";
-
-    // Logic 1: Ada Gurita? -> Langsung sebut manual karena ini menu Tambahan/Premium
     if (activeKeys.includes("gurita")) {
       if (totalVariant === 1) return "Takoyaki Full Gurita";
       return `Takoyaki Isi ${activeLabels.join(", ")}`;
     }
-
-    // Logic 2: Cek apakah item yang dipilih HANYA dari Standard Set?
     const isAllStandard = activeKeys.every((k) => standardSet.includes(k));
-
     if (isAllStandard) {
-      if (totalVariant === 5) return "Takoyaki Campur"; // Full Team
-      // 3 atau 4 Item -> "Takoyaki Campur Tanpa X"
+      if (totalVariant === 5) return "Takoyaki Campur";
       if (totalVariant >= 3) {
         const missingItems = standardSet
           .filter((k) => !activeKeys.includes(k))
@@ -216,8 +206,6 @@ function App() {
         return `Takoyaki Campur Tanpa ${missingItems.join(", ")}`;
       }
     }
-
-    // Logic 3: Sisanya (1 atau 2 item) -> Sebut manual
     return `Takoyaki Isi ${activeLabels.join(", ")}`;
   };
 
@@ -226,7 +214,6 @@ function App() {
       hour: "2-digit",
       minute: "2-digit",
     });
-
   const isGlobalEditMode = tempCart.some((item) => item.targetAntrian);
   const getTargetQueueNumber = () =>
     isGlobalEditMode
@@ -234,15 +221,14 @@ function App() {
       : nomorAntrian;
 
   const getDisplayNama = () => {
-    if (isGlobalEditMode) {
+    if (isGlobalEditMode)
       return tempCart.find((item) => item.targetAntrian).targetNama;
-    }
     return namaPelanggan.trim() === ""
       ? `Pelanggan #${nomorAntrian}`
       : namaPelanggan;
   };
 
-  // --- LOGIC FORM ---
+  // --- LOGIC FORM & CART ---
   const handleGantiIsian = (id, delta) => {
     if (isCampurMode) setIsCampurMode(false);
     const currentQty = isian[id] || 0;
@@ -309,7 +295,6 @@ function App() {
   const loadCartItemToForm = (item) => {
     resetFormTakoyaki();
     setEditingCartId(item.id);
-
     if (item.type === "drink") {
       setQtyAir(item.qty);
     } else {
@@ -496,7 +481,6 @@ function App() {
       ? tempCart.find((item) => item.targetAntrian).targetAntrian
       : nomorAntrian;
 
-    // FORMAT NAMA: Auto Capitalize
     let rawNama = isEditMode
       ? tempCart.find((item) => item.targetAntrian).targetNama
       : namaPelanggan;
@@ -516,7 +500,6 @@ function App() {
     }));
 
     setMasterQueue([...masterQueue, ...finalItems]);
-
     if (isEditMode) {
       setSnackbar({
         open: true,
@@ -577,7 +560,6 @@ function App() {
         p.noAntrian === noAntrian ? { ...p, statusBayar: newStatus } : p,
       ),
     );
-
     if (newStatus === "lunas") {
       setSnackbar({
         open: true,
@@ -663,7 +645,7 @@ function App() {
     const allSeparated = sauses.every(
       (s) => sausesPisah && sausesPisah.includes(s),
     );
-    if (allSeparated) {
+    if (allSeparated)
       return (
         <Chip
           label="SEMUA SAUS DIPISAH"
@@ -676,18 +658,16 @@ function App() {
           }}
         />
       );
-    }
     return (
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
         {sauses.map((saus) => {
           const isPisah = sausesPisah && sausesPisah.includes(saus);
-          const color = getSauceColor(saus);
           return (
             <Chip
               key={saus}
               label={`${saus}${isPisah ? " (PISAH)" : ""}`}
               size="small"
-              color={color}
+              color={getSauceColor(saus)}
               variant={isPisah ? "outlined" : "filled"}
               sx={{ fontWeight: "bold", fontSize: "0.7rem", height: "24px" }}
             />
@@ -938,8 +918,6 @@ function App() {
                                 )}
                               </Box>
                             </Box>
-
-                            {/* PREVIEW AREA (MINI RECEIPT DENGAN DETAIL) */}
                             {!isExpanded && (
                               <Box
                                 sx={{
@@ -962,7 +940,6 @@ function App() {
                                     >
                                       • <b>{item.qty}x</b> {item.nama}
                                     </Typography>
-                                    {/* Tampilkan Detail jika Food */}
                                     {item.type === "food" && (
                                       <Typography
                                         variant="caption"
@@ -971,6 +948,7 @@ function App() {
                                           display: "block",
                                           ml: 2,
                                           fontStyle: "italic",
+                                          fontSize: "0.75rem",
                                         }}
                                       >
                                         {getDetailString(item.detail)}
@@ -1017,15 +995,18 @@ function App() {
                                     </Typography>
                                     {item.type === "food" && (
                                       <Box mt={0.5}>
-                                        {/* RINCIAN JUMLAH ISIAN (PENTING BUAT KOKI) */}
                                         <Typography
-                                          variant="body2"
-                                          color="primary"
-                                          sx={{ fontWeight: "bold", mb: 0.5 }}
+                                          variant="caption"
+                                          color="text.secondary"
+                                          sx={{
+                                            fontWeight: 600,
+                                            mb: 0.5,
+                                            fontSize: "0.85rem",
+                                            display: "block",
+                                          }}
                                         >
-                                          {getDetailString(item.detail)}
+                                          Detail: {getDetailString(item.detail)}
                                         </Typography>
-
                                         {item.katsuobushi && (
                                           <Chip
                                             label="Pake Katsuobushi"
@@ -1225,6 +1206,7 @@ function App() {
                 Sedang mengedit item dari Keranjang... (Klik X untuk Batal)
               </Alert>
             )}
+
             <Grid container spacing={2} mb={3}>
               <Grid item xs={6}>
                 <motion.div whileTap={{ scale: 0.95 }}>
@@ -1285,6 +1267,7 @@ function App() {
                 </Box>
               </Grid>
             </Grid>
+
             <Box
               display="flex"
               justifyContent="space-between"
@@ -1312,7 +1295,9 @@ function App() {
                 Reset Pilihan
               </Button>
             </Box>
-            <Grid container spacing={1} mb={3}>
+
+            {/* GRID 3 KOLOM: FIXED HEIGHT & 100% WIDTH */}
+            <Grid container spacing={0.5} mb={3}>
               {VARIAN_ISIAN.map((item) => (
                 <Grid item xs={4} key={item.id}>
                   <motion.div whileTap={{ scale: 0.95 }}>
@@ -1328,20 +1313,21 @@ function App() {
                         border:
                           isian[item.id] > 0
                             ? `3px solid ${COLORS.primary}`
-                            : "1px solid transparent",
+                            : "1px solid #eee",
                         boxShadow:
                           isian[item.id] > 0
                             ? "0 4px 12px rgba(211, 47, 47, 0.3)"
                             : "none",
-                        borderRadius: 3,
+                        borderRadius: 2,
                         cursor: "pointer",
-                        height: "120px",
+                        height: "100px",
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "space-between",
                         transition: "0.1s",
                         userSelect: "none",
-                        p: 1.5,
+                        p: 1,
+                        width: "100%",
                       }}
                     >
                       <Box
@@ -1358,20 +1344,20 @@ function App() {
                             color:
                               isian[item.id] > 0 ? COLORS.primary : "#757575",
                             letterSpacing: 0.5,
-                            fontSize: "1.2rem",
+                            fontSize: "0.9rem",
                           }}
                         >
                           {item.label}
                         </Typography>
                       </Box>
                       <Box
-                        height="30px"
+                        height="24px"
                         display="flex"
                         justifyContent="center"
                         alignItems="center"
                         sx={{
                           visibility: isian[item.id] > 0 ? "visible" : "hidden",
-                          gap: 1,
+                          gap: 0.5,
                         }}
                       >
                         <IconButton
@@ -1380,16 +1366,16 @@ function App() {
                             e.stopPropagation();
                             handleGantiIsian(item.id, -1);
                           }}
-                          sx={{ bgcolor: "#ffebee" }}
+                          sx={{ bgcolor: "#ffebee", p: 0.5 }}
                         >
-                          <Remove />
+                          <Remove fontSize="small" />
                         </IconButton>
                         <Typography
                           sx={{
                             fontWeight: "bold",
                             color: COLORS.primary,
-                            fontSize: "1.4rem",
-                            minWidth: "20px",
+                            fontSize: "1.2rem",
+                            minWidth: "16px",
                             textAlign: "center",
                           }}
                         >
@@ -1401,9 +1387,9 @@ function App() {
                             e.stopPropagation();
                             handleGantiIsian(item.id, 1);
                           }}
-                          sx={{ bgcolor: "#ffebee" }}
+                          sx={{ bgcolor: "#ffebee", p: 0.5 }}
                         >
-                          <Add />
+                          <Add fontSize="small" />
                         </IconButton>
                       </Box>
                     </Card>
@@ -1411,6 +1397,7 @@ function App() {
                 </Grid>
               ))}
             </Grid>
+
             <Box mb={3}>
               <FormControlLabel
                 control={
@@ -1466,6 +1453,8 @@ function App() {
                   Pilih Semua
                 </Button>
               </Box>
+
+              {/* SAUS GRID: AUTO HEIGHT (JUMPING LAYOUT) */}
               <Grid container spacing={1}>
                 {SAUS_LIST.map((saus) => (
                   <Grid item xs={4} key={saus}>
@@ -1477,10 +1466,12 @@ function App() {
                         borderRadius: 2,
                         p: 0.5,
                         bgcolor: sauses[saus] ? "#ffebee" : "transparent",
-                        height: "100%",
+                        height: "auto",
+                        minHeight: "60px",
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
                       <FormControlLabel
@@ -1609,13 +1600,13 @@ function App() {
                             >
                               {item.type === "food" ? (
                                 <>
-                                  {/* DETAIL ISIAN DITAMPILKAN DI SINI */}
                                   <span
                                     style={{
                                       color: COLORS.primary,
                                       fontWeight: "bold",
                                       display: "block",
                                       marginBottom: "2px",
+                                      fontSize: "0.9rem",
                                     }}
                                   >
                                     {getDetailString(item.detail)}
