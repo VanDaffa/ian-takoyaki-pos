@@ -642,10 +642,14 @@ function App() {
           Tanpa Saus
         </Typography>
       );
+
+    // FIX LOGIC: Hanya tampilkan "SEMUA SAUS DIPISAH" jika jumlah saus yang dipilih = 3 (Full Team)
+    const isFullTeam = sauses.length === SAUS_LIST.length;
     const allSeparated = sauses.every(
       (s) => sausesPisah && sausesPisah.includes(s),
     );
-    if (allSeparated)
+
+    if (isFullTeam && allSeparated) {
       return (
         <Chip
           label="SEMUA SAUS DIPISAH"
@@ -658,6 +662,8 @@ function App() {
           }}
         />
       );
+    }
+
     return (
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
         {sauses.map((saus) => {
@@ -1296,7 +1302,7 @@ function App() {
               </Button>
             </Box>
 
-            {/* GRID 3 KOLOM: FIXED HEIGHT & 100% WIDTH */}
+            {/* GRID 3 KOLOM: ABSOLUTE SQUARE & UNIFORM FONT SIZE */}
             <Grid container spacing={0.5} mb={3}>
               {VARIAN_ISIAN.map((item) => (
                 <Grid item xs={4} key={item.id}>
@@ -1320,14 +1326,14 @@ function App() {
                             : "none",
                         borderRadius: 2,
                         cursor: "pointer",
-                        height: "100px",
+                        aspectRatio: "1/1",
+                        width: "100%",
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "space-between",
                         transition: "0.1s",
                         userSelect: "none",
                         p: 1,
-                        width: "100%",
                       }}
                     >
                       <Box
@@ -1336,6 +1342,7 @@ function App() {
                         alignItems="center"
                         flexGrow={1}
                       >
+                        {/* UNIFORM FONT SIZE: 0.9rem (BOLD) for ALL */}
                         <Typography
                           variant="body1"
                           fontWeight="900"
@@ -1345,6 +1352,8 @@ function App() {
                               isian[item.id] > 0 ? COLORS.primary : "#757575",
                             letterSpacing: 0.5,
                             fontSize: "0.9rem",
+                            width: "100%",
+                            lineHeight: 1.1,
                           }}
                         >
                           {item.label}
@@ -1399,6 +1408,7 @@ function App() {
             </Grid>
 
             <Box mb={3}>
+              {/* KATSUOBUSHI: TEXT 0.9rem (HARMONIZED) */}
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1412,7 +1422,7 @@ function App() {
                   />
                 }
                 label={
-                  <Typography variant="h6" fontWeight="bold" fontSize="1.1rem">
+                  <Typography sx={{ fontSize: "0.9rem", fontWeight: "900" }}>
                     Topping Katsuobushi
                   </Typography>
                 }
@@ -1454,7 +1464,7 @@ function App() {
                 </Button>
               </Box>
 
-              {/* SAUS GRID: AUTO HEIGHT (JUMPING LAYOUT) */}
+              {/* SAUS GRID: TEXT 0.9rem (HARMONIZED) */}
               <Grid container spacing={1}>
                 {SAUS_LIST.map((saus) => (
                   <Grid item xs={4} key={saus}>
@@ -1464,14 +1474,15 @@ function App() {
                           ? `2px solid ${COLORS.primary}`
                           : "1px solid #ddd",
                         borderRadius: 2,
-                        p: 0.5,
+                        p: 1,
                         bgcolor: sauses[saus] ? "#ffebee" : "transparent",
+                        minHeight: "85px",
                         height: "auto",
-                        minHeight: "60px",
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
+                        transition: "all 0.3s ease",
                       }}
                     >
                       <FormControlLabel
@@ -1488,37 +1499,58 @@ function App() {
                         }
                         label={
                           <Typography
-                            variant="body2"
-                            fontWeight="bold"
-                            sx={{ fontSize: "0.85rem", lineHeight: 1 }}
+                            sx={{
+                              fontSize: "0.9rem",
+                              fontWeight: "900",
+                              lineHeight: 1.1,
+                              textAlign: "center",
+                            }}
                           >
                             {saus}
                           </Typography>
                         }
-                        sx={{ m: 0, width: "100%", justifyContent: "center" }}
+                        sx={{
+                          m: 0,
+                          width: "100%",
+                          justifyContent: "center",
+                          ".MuiFormControlLabel-label": { width: "100%" },
+                        }}
                       />
-                      {sauses[saus] && (
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              size="small"
-                              checked={sausesPisah[saus]}
-                              onChange={() => handleSausPisahChange(saus)}
-                              color="error"
+                      <AnimatePresence>
+                        {sauses[saus] && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                            animate={{
+                              height: "auto",
+                              opacity: 1,
+                              marginTop: 4,
+                            }}
+                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                            style={{ overflow: "hidden" }}
+                          >
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  size="small"
+                                  checked={sausesPisah[saus]}
+                                  onChange={() => handleSausPisahChange(saus)}
+                                  color="error"
+                                />
+                              }
+                              label={
+                                <Typography
+                                  variant="caption"
+                                  color="error"
+                                  fontWeight="bold"
+                                >
+                                  Pisah
+                                </Typography>
+                              }
+                              sx={{ m: 0 }}
                             />
-                          }
-                          label={
-                            <Typography
-                              variant="caption"
-                              color="error"
-                              fontWeight="bold"
-                            >
-                              Pisah
-                            </Typography>
-                          }
-                          sx={{ m: 0 }}
-                        />
-                      )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </Box>
                   </Grid>
                 ))}
