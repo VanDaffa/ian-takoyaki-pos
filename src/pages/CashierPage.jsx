@@ -2,19 +2,21 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   Box, Typography, Card, Button, IconButton, Chip, Stack, Divider, Paper,
   Checkbox, FormControlLabel, Collapse, CardActionArea, Snackbar, Alert, TextField,
-  List, Dialog, DialogTitle, DialogActions, DialogContent, DialogContentText, Switch, useMediaQuery, useTheme
+  List, Dialog, DialogTitle, DialogActions, DialogContent, DialogContentText, Switch, useMediaQuery, useTheme,
+  Menu, MenuItem, ListItemIcon, ListItemText, CssBaseline
 } from "@mui/material";
 import {
   Add, Remove, Restaurant, CheckCircle, AttachMoney, Kitchen,
-  Person, Delete, RestartAlt, ShoppingBasket, ContentCopy, Edit, MoneyOff, SaveAs, LocalDrink
+  Person, Delete, RestartAlt, ShoppingBasket, ContentCopy, Edit, MoneyOff, SaveAs, LocalDrink, Logout, Store, MoreVert
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { COLORS, VARIAN_ISIAN, SAUS_LIST } from "../utils/constants";
 import { formatName, generateSmartName, getSauceColor } from "../utils/helpers";
 import { playTone } from "../utils/soundEngine";
 
-import { db } from "../utils/firebase";
-import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "../utils/firebase";
+import { signOut } from "firebase/auth";
+import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, setDoc, doc, serverTimestamp } from "firebase/firestore";
 
 export default function CashierPage() {
   const [isian, setIsian] = useState({});
@@ -29,6 +31,9 @@ export default function CashierPage() {
   const [tempCart, setTempCart] = useState([]);
   const [masterQueue, setMasterQueue] = useState([]);
   const [editingCartId, setEditingCartId] = useState(null);
+
+  const [isShopOpen, setIsShopOpen] = useState(true);
+  const [menuAnchor, setMenuAnchor] = useState(null);
 
   const [confirmDialog, setConfirmDialog] = useState({ open: false, noAntrian: null, docId: null });
   const [cancelDialog, setCancelDialog] = useState({ open: false, noAntrian: null, docId: null, hasCookedItems: false });
@@ -54,12 +59,35 @@ export default function CashierPage() {
   };
 
   useEffect(() => {
+  // Jika toko tutup, tidak perlu kirim heartbeat
+  if (!isShopOpen) return;
+
+  // Kirim sinyal keaktifan setiap 60 detik
+  const interval = setInterval(async () => {
+    await setDoc(doc(db, "settings", "shop"), { 
+      isOpen: true,
+      lastActive: serverTimestamp() 
+    }, { merge: true });
+  }, 60000); 
+
+  return () => clearInterval(interval);
+}, [isShopOpen]);
+
+  useEffect(() => {
+    const unsubShop = onSnapshot(doc(db, "settings", "shop"), (docSnap) => {
+      if (docSnap.exists()) {
+        setIsShopOpen(docSnap.data().isOpen);
+      }
+    });
+    return () => unsubShop();
+  }, []);
+
+  useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const flatItems = [];
       snapshot.docs.forEach((doc) => {
         const data = doc.data();
-        // FILTER: Abaikan pesanan yang sudah selesai disajikan atau dibatalkan
         if (data.statusPesanan === "selesai" || data.statusPesanan === "batal") return;
         
         data.items.forEach((item) => {
@@ -72,6 +100,12 @@ export default function CashierPage() {
     });
     return () => unsubscribe();
   }, []);
+
+  const handleToggleShop = async () => {
+    playTone("click");
+    await setDoc(doc(db, "settings", "shop"), { isOpen: !isShopOpen }, { merge: true });
+    setSnackbar({ open: true, message: `Status Kedai diubah menjadi: ${!isShopOpen ? "BUKA 🟢" : "TUTUP 🔴"}`, severity: "info" });
+  };
 
   const toggleIsian = (id) => {
     if (isCampurMode) setIsCampurMode(false);
@@ -273,7 +307,6 @@ export default function CashierPage() {
     setConfirmDialog({ open: true, noAntrian: noAntrian, docId: docId });
   };
 
-  // LIFECYCLE UPDATE: Selesai hanya mengubah status ke 'selesai'
   const executeFinishOrder = async () => {
     if (confirmDialog.docId) { 
       await updateDoc(doc(db, "orders", confirmDialog.docId), { statusPesanan: "selesai" }); 
@@ -290,7 +323,6 @@ export default function CashierPage() {
     playTone("delete");
   };
 
-  // LIFECYCLE UPDATE: Batal hanya mengubah status ke 'batal'
   const executeCancelOrder = async () => {
     if (cancelDialog.docId) { 
       await updateDoc(doc(db, "orders", cancelDialog.docId), { statusPesanan: "batal" }); 
@@ -316,6 +348,8 @@ export default function CashierPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: isMobile ? "column" : "row", height: "100vh", width: "100vw", overflow: "hidden", bgcolor: COLORS.background }}>
+      <CssBaseline />
+
       <Snackbar open={snackbar.open} autoHideDuration={2000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
         <Alert severity={snackbar.severity} variant="filled" sx={{ width: "100%", fontWeight: "bold" }}>{snackbar.message}</Alert>
       </Snackbar>
@@ -350,10 +384,36 @@ export default function CashierPage() {
 
       {/* --- KIRI: KDS --- */}
       <Box sx={{ width: isMobile ? "100%" : "45%", minWidth: isMobile ? "100%" : "480px", height: isMobile ? "40%" : "100%", bgcolor: "white", borderRight: "2px solid #ffccbc", display: "flex", flexDirection: "column", zIndex: 2, boxShadow: "4px 0 15px rgba(211, 47, 47, 0.1)" }}>
-        <Box sx={{ p: 2.5, bgcolor: COLORS.primary, color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Box sx={{ p: 2.5, bgcolor: COLORS.primary, color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <Typography variant="h5" fontWeight="bold">Daftar Pesanan</Typography>
-          <Typography variant="body1" sx={{ bgcolor: "rgba(0,0,0,0.2)", px: 2, py: 0.5, borderRadius: 2, fontWeight: "bold" }}>Antrean: {sortedGroups.length}</Typography>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Typography variant="body1" sx={{ bgcolor: "rgba(0,0,0,0.2)", px: 2, py: 0.5, borderRadius: 2, fontWeight: "bold" }}>
+              Antrean: {sortedGroups.length}
+            </Typography>
+            <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} color="inherit" size="small" sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
+              <MoreVert />
+            </IconButton>
+          </Box>
         </Box>
+
+        {/* Dropdown Menu Pengaturan Kasir */}
+        <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)} PaperProps={{ sx: { borderRadius: 3, minWidth: 220, mt: 1, boxShadow: "0px 4px 20px rgba(0,0,0,0.1)" } }}>
+          <MenuItem onClick={() => { handleToggleShop(); setMenuAnchor(null); }} sx={{ py: 1.5 }}>
+            <ListItemIcon><Store fontSize="small" color={isShopOpen ? "success" : "error"} /></ListItemIcon>
+            <ListItemText primary={`Status Kedai: ${isShopOpen ? "BUKA" : "TUTUP"}`} primaryTypographyProps={{ fontWeight: "bold", color: isShopOpen ? "success.main" : "error.main" }} />
+          </MenuItem>
+          <Divider sx={{ my: 0.5 }} />
+          {/* PERBAIKAN FITUR: Otomatis menutup toko di Firebase saat Kasir Logout */}
+          <MenuItem onClick={async () => { 
+            await setDoc(doc(db, "settings", "shop"), { isOpen: false }, { merge: true });
+            signOut(auth); 
+            setMenuAnchor(null); 
+          }} sx={{ py: 1.5 }}>
+            <ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon>
+            <ListItemText primary="Logout Kasir" primaryTypographyProps={{ fontWeight: "bold", color: "error.main" }} />
+          </MenuItem>
+        </Menu>
+        
         <Box sx={{ flexGrow: 1, overflowY: "auto", p: 2, bgcolor: "#fff3e0" }}>
           {sortedGroups.length === 0 ? (
             <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" opacity={0.6}>
@@ -466,126 +526,137 @@ export default function CashierPage() {
       <Box sx={{ flexGrow: 1, height: isMobile ? "60%" : "100%", overflowY: "auto", p: isMobile ? 2 : 4, bgcolor: COLORS.background }}>
         <Typography variant="h5" fontWeight="bold" color={COLORS.textDark} sx={{ mb: 2, display: "flex", alignItems: "center" }}>🐙 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Buat Pesanan Baru"}</Typography>
         
-        <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: 3, borderTop: `4px solid ${COLORS.success}`, bgcolor: "white" }}>
-          <Typography variant="h6" fontWeight="bold" color={COLORS.success} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Person sx={{ mr: 1 }} /> Data Pelanggan</Typography>
-          <TextField fullWidth label="Nama Pelanggan (Opsional)" variant="outlined" value={isGlobalEditMode ? getDisplayNama() : namaPelanggan} onChange={(e) => setNamaPelanggan(e.target.value)} placeholder={`Pelanggan #${getTargetQueueNumber()}`} disabled={isGlobalEditMode} InputLabelProps={{ style: { fontSize: "1.2rem" } }} InputProps={{ style: { fontSize: "1.3rem" } }} />
-          <Typography variant="body2" sx={{ mt: 1, display: "block", color: COLORS.success, fontWeight: "bold" }}>*Mengisi untuk Antrean #{getTargetQueueNumber()}</Typography>
-        </Paper>
+        {/* PERBAIKAN UX: Menampilkan banner peringatan jika kedai ditutup kasir */}
+        {!isShopOpen && (
+          <Alert severity="warning" variant="filled" sx={{ mb: 3, fontWeight: "bold", borderRadius: 3, boxShadow: "0px 4px 10px rgba(0,0,0,0.05)" }}>
+            ⚠️ KEDAI SEDANG TUTUP! Buka status kedai melalui menu titik tiga di pojok kiri atas untuk dapat menginput pesanan secara langsung di kasir.
+          </Alert>
+        )}
 
-        {editingCartId && <Alert severity="info" sx={{ mb: 2, fontWeight: "bold" }} onClose={cancelEditMode}>Sedang mengubah rincian dari Keranjang... (Klik X untuk Batal)</Alert>}
+        {/* PERBAIKAN UX: Container diblokir total & menjadi buram secara visual jika status kedai TUTUP */}
+        <Box sx={{ opacity: isShopOpen ? 1 : 0.4, pointerEvents: isShopOpen ? "auto" : "none", transition: "all 0.3s ease" }}>
+          
+          <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: 3, borderTop: `4px solid ${COLORS.success}`, bgcolor: "white" }}>
+            <Typography variant="h6" fontWeight="bold" color={COLORS.success} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Person sx={{ mr: 1 }} /> Data Pelanggan</Typography>
+            <TextField fullWidth label="Nama Pelanggan (Opsional)" variant="outlined" value={isGlobalEditMode ? getDisplayNama() : namaPelanggan} onChange={(e) => setNamaPelanggan(e.target.value)} placeholder={`Pelanggan #${getTargetQueueNumber()}`} disabled={isGlobalEditMode} InputLabelProps={{ style: { fontSize: "1.2rem" } }} InputProps={{ style: { fontSize: "1.3rem" } }} />
+            <Typography variant="body2" sx={{ mt: 1, display: "block", color: COLORS.success, fontWeight: "bold" }}>*Mengisi untuk Antrean #{getTargetQueueNumber()}</Typography>
+          </Paper>
 
-        <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 4, bgcolor: "white", borderTop: `4px solid ${COLORS.primary}`, opacity: isEditingDrink ? 0.5 : 1, pointerEvents: isEditingDrink ? "none" : "auto" }}>
-          <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Restaurant sx={{ mr: 1 }} /> Menu Takoyaki</Typography>
-          
-          <motion.div whileTap={{ scale: 0.95 }} style={{ marginBottom: "16px", width: "100%" }}>
-            <Button fullWidth variant="contained" onClick={setPaketCampur} startIcon={<Restaurant />} sx={{ height: "50px", bgcolor: COLORS.secondary, fontSize: "1rem", fontWeight: "bold" }}>PAKET CAMPUR (15K)</Button>
-          </motion.div>
-          
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}><Box display="flex" alignItems="center" gap={1}><Typography variant="subtitle1" fontWeight="bold">Racik Isian:</Typography><Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "default"} size="small" sx={{ fontWeight: "bold" }} /></Box><Button size="small" color="error" startIcon={<RestartAlt />} onClick={clearTakoyakiForm} sx={{ textTransform: "none", fontWeight: "bold" }}>Kosongkan</Button></Box>
-          
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 3 }}>
-            {VARIAN_ISIAN.map((item) => (
-              <motion.div key={item.id} whileTap={{ scale: 0.95 }} style={{ width: "100%", height: "100%" }}>
-                <Card elevation={0} onClick={(e) => { e.stopPropagation(); toggleIsian(item.id); }} sx={{ bgcolor: isian[item.id] > 0 ? COLORS.cardSelected : "#f5f5f5", border: isian[item.id] > 0 ? `3px solid ${COLORS.primary}` : "1px solid #eee", boxShadow: isian[item.id] > 0 ? "0 4px 12px rgba(211, 47, 47, 0.3)" : "none", borderRadius: 2, cursor: "pointer", height: "60px", width: "100%", display: "flex", justifyContent: "center", alignItems: "center", transition: "0.1s", userSelect: "none", boxSizing: "border-box", px: 1 }}>
-                  <Typography variant="body1" fontWeight="900" align="center" sx={{ color: isian[item.id] > 0 ? COLORS.primary : "#757575", letterSpacing: 0.5, fontSize: "0.85rem", lineHeight: 1.1 }}>{item.label}</Typography>
-                </Card>
-              </motion.div>
-            ))}
-          </Box>
+          {editingCartId && <Alert severity="info" sx={{ mb: 2, fontWeight: "bold" }} onClose={cancelEditMode}>Sedang mengubah rincian dari Keranjang... (Klik X untuk Batal)</Alert>}
 
-          <Box mb={2}>
-            <FormControlLabel control={<Checkbox checked={pakeKatsuobushi} onChange={(e) => { setPakeKatsuobushi(e.target.checked); playTone("click"); }} color="warning" sx={{ transform: "scale(1.2)", mr: 1 }} />} label={<Typography sx={{ fontSize: "0.9rem", fontWeight: "bold" }}>Topping Katsuobushi</Typography>} sx={{ p: 1, border: "1px solid #ddd", borderRadius: 2, width: "100%", mb: 2, mx: 0 }} />
+          <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 4, bgcolor: "white", borderTop: `4px solid ${COLORS.primary}`, opacity: isEditingDrink ? 0.5 : 1, pointerEvents: isEditingDrink ? "none" : "auto" }}>
+            <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Restaurant sx={{ mr: 1 }} /> Menu Takoyaki</Typography>
             
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-              <Typography variant="body2" color="text.secondary" fontWeight="bold">Pilih Saus:</Typography>
-              <Button size="small" variant="outlined" onClick={toggleSemuaSaus} sx={{ fontWeight: "bold", fontSize: "0.8rem", height: "30px", textTransform: "none" }}>
-                {Object.values(sauses).every((val) => val === true) ? "Hapus Semua" : "Pilih Semua"}
-              </Button>
-            </Box>
-
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
-              {SAUS_LIST.map((saus) => (
-                <Box key={saus} sx={{ border: sauses[saus] ? `2px solid ${COLORS.primary}` : "1px solid #ddd", borderRadius: 2, p: 0.5, bgcolor: sauses[saus] ? "#ffebee" : "transparent", minHeight: "85px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease", width: "100%", boxSizing: "border-box" }}>
-                  <Box display="flex" alignItems="center" justifyContent="center" width="100%">
-                    <Checkbox size="small" checked={sauses[saus]} onChange={() => handleSausChange(saus)} sx={{ p: 0, color: COLORS.secondary, "&.Mui-checked": { color: COLORS.primary } }} />
-                    <Typography sx={{ fontSize: "0.8rem", fontWeight: "900", lineHeight: 1.1, textAlign: "center" }}>{saus}</Typography>
-                  </Box>
-                  <AnimatePresence>
-                    {sauses[saus] && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
-                        <FormControlLabel control={<Switch size="small" checked={sausesPisah[saus]} onChange={() => handleSausPisahChange(saus)} color="error" />} label={<Typography variant="caption" color="error" fontWeight="bold">Pisah</Typography>} sx={{ m: 0, ml: 1 }} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </Box>
+            <motion.div whileTap={{ scale: 0.95 }} style={{ marginBottom: "16px", width: "100%" }}>
+              <Button fullWidth variant="contained" onClick={setPaketCampur} startIcon={<Restaurant />} sx={{ height: "50px", bgcolor: COLORS.secondary, fontSize: "1rem", fontWeight: "bold" }}>PAKET CAMPUR (15K)</Button>
+            </motion.div>
+            
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}><Box display="flex" alignItems="center" gap={1}><Typography variant="subtitle1" fontWeight="bold">Racik Isian:</Typography><Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "default"} size="small" sx={{ fontWeight: "bold" }} /></Box><Button size="small" color="error" startIcon={<RestartAlt />} onClick={clearTakoyakiForm} sx={{ textTransform: "none", fontWeight: "bold" }}>Kosongkan</Button></Box>
+            
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 3 }}>
+              {VARIAN_ISIAN.map((item) => (
+                <motion.div key={item.id} whileTap={{ scale: 0.95 }} style={{ width: "100%", height: "100%" }}>
+                  <Card elevation={0} onClick={(e) => { e.stopPropagation(); toggleIsian(item.id); }} sx={{ bgcolor: isian[item.id] > 0 ? COLORS.cardSelected : "#f5f5f5", border: isian[item.id] > 0 ? `3px solid ${COLORS.primary}` : "1px solid #eee", boxShadow: isian[item.id] > 0 ? "0 4px 12px rgba(211, 47, 47, 0.3)" : "none", borderRadius: 2, cursor: "pointer", height: "60px", width: "100%", display: "flex", justifyContent: "center", alignItems: "center", transition: "0.1s", userSelect: "none", boxSizing: "border-box", px: 1 }}>
+                    <Typography variant="body1" fontWeight="900" align="center" sx={{ color: isian[item.id] > 0 ? COLORS.primary : "#757575", letterSpacing: 0.5, fontSize: "0.85rem", lineHeight: 1.1 }}>{item.label}</Typography>
+                  </Card>
+                </motion.div>
               ))}
             </Box>
-          </Box>
-          <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
-            <Button fullWidth variant="contained" onClick={handleTakoyakiCartAction} disabled={totalPilihan === 0 && !isEditingFood} sx={{ bgcolor: isEditingFood ? COLORS.info : COLORS.primary, borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingFood ? "PERBARUI TAKOYAKI INI" : `+ TAMBAH TAKOYAKI ${totalPilihan > 0 ? `(Rp ${hitungHargaPorsi().toLocaleString()})` : ""}`}</Button>
-          </motion.div>
-        </Paper>
 
-        <Paper elevation={0} sx={{ p: 2, mb: 4, borderRadius: 4, bgcolor: "#e3f2fd", borderTop: `4px solid ${COLORS.info}`, opacity: isEditingFood ? 0.5 : 1, pointerEvents: isEditingFood ? "none" : "auto" }}>
-          <Typography variant="h6" fontWeight="bold" color={COLORS.info} sx={{ display: "flex", alignItems: "center", mb: 2 }}><LocalDrink sx={{ mr: 1 }} /> Menu Minuman</Typography>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Box>
-              <Typography variant="subtitle1" fontWeight="bold">Air Mineral (Dingin / Biasa)</Typography>
-              <Typography variant="body2" color="text.secondary" fontWeight="bold">Rp 5.000 / botol</Typography>
-            </Box>
-            <Box display="flex" alignItems="center" sx={{ bgcolor: "white", borderRadius: 2, border: `1px solid ${COLORS.info}` }}>
-              <IconButton onClick={() => { setQtyAir(Math.max(0, qtyAir - 1)); playTone("click"); }} disabled={qtyAir === 0}><Remove color="info" /></IconButton>
-              <Typography fontWeight="bold" fontSize="1.2rem" sx={{ mx: 2, width: "20px", textAlign: "center" }}>{qtyAir}</Typography>
-              <IconButton onClick={() => { if (qtyAir < 10) { setQtyAir(qtyAir + 1); playTone("click"); } }} disabled={qtyAir >= 10}><Add color="info" /></IconButton>
-            </Box>
-          </Box>
-          <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
-            <Button fullWidth variant="contained" color="info" onClick={handleDrinkCartAction} disabled={qtyAir === 0 && !isEditingDrink} sx={{ borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingDrink ? "PERBARUI MINUMAN INI" : `+ TAMBAH MINUMAN ${qtyAir > 0 ? `(Rp ${(qtyAir * 5000).toLocaleString()})` : ""}`}</Button>
-          </motion.div>
-        </Paper>
+            <Box mb={2}>
+              <FormControlLabel control={<Checkbox checked={pakeKatsuobushi} onChange={(e) => { setPakeKatsuobushi(e.target.checked); playTone("click"); }} color="warning" sx={{ transform: "scale(1.2)", mr: 1 }} />} label={<Typography sx={{ fontSize: "0.9rem", fontWeight: "bold" }}>Topping Katsuobushi</Typography>} sx={{ p: 1, border: "1px solid #ddd", borderRadius: 2, width: "100%", mb: 2, mx: 0 }} />
+              
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="body2" color="text.secondary" fontWeight="bold">Pilih Saus:</Typography>
+                <Button size="small" variant="outlined" onClick={toggleSemuaSaus} sx={{ fontWeight: "bold", fontSize: "0.8rem", height: "30px", textTransform: "none" }}>
+                  {Object.values(sauses).every((val) => val === true) ? "Hapus Semua" : "Pilih Semua"}
+                </Button>
+              </Box>
 
-        {tempCart.length > 0 && (
-          <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: "#fffde7", border: "2px dashed orange" }}>
-            <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} gutterBottom>📝 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Keranjang Pesanan"}</Typography>
-            <List dense sx={{ p: 0, mb: 2 }}>
-              <AnimatePresence>
-                {tempCart.map((item) => (
-                  <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} style={{ marginBottom: "12px" }}>
-                    <Box sx={{ border: `1px solid ${editingCartId === item.id ? COLORS.info : '#ddd'}`, borderRadius: 2, p: 1.5, bgcolor: editingCartId === item.id ? "#e3f2fd" : "white", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                        <Typography fontWeight="bold" fontSize="1.1rem" sx={{ pr: 2, lineHeight: 1.2 }}>{item.nama}</Typography>
-                        <Typography variant="subtitle1" fontWeight="bold" color={COLORS.primary} sx={{ whiteSpace: "nowrap" }}>Rp {item.harga.toLocaleString()}</Typography>
-                      </Box>
-                      
-                      {item.type === "food" && (
-                        <Box sx={{ mt: 0.5 }}>
-                          <Box display="flex" flexWrap="wrap" gap={0.75}>
-                            {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ bgcolor: COLORS.warning, color: "white", fontWeight: "bold", fontSize: "0.7rem", height: "24px" }} />}
-                            {(!item.sauses || item.sauses.length === 0) && <Chip label="Tanpa Saus" size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: "24px", color: "text.secondary", borderColor: "#ddd" }} />}
-                            {renderSauceChips(item.sauses, item.sausesPisah)}
-                          </Box>
-                        </Box>
-                      )}
-
-                      <Divider sx={{ my: 1.5, borderStyle: "dashed" }} />
-                      <Box display="flex" justifyContent="flex-end" gap={1.5}>
-                        <IconButton onClick={() => loadCartItemToForm(item)} color="primary" sx={{ bgcolor: "#e3f2fd", borderRadius: 2 }}><Edit /></IconButton>
-                        <IconButton onClick={() => duplicateItem(item)} color="default" sx={{ bgcolor: "#f5f5f5", borderRadius: 2 }}><ContentCopy /></IconButton>
-                        <IconButton color="error" onClick={() => hapusDariTemp(item.id)} sx={{ bgcolor: "#ffebee", borderRadius: 2 }}><Delete /></IconButton>
-                      </Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+                {SAUS_LIST.map((saus) => (
+                  <Box key={saus} sx={{ border: sauses[saus] ? `2px solid ${COLORS.primary}` : "1px solid #ddd", borderRadius: 2, p: 0.5, bgcolor: sauses[saus] ? "#ffebee" : "transparent", minHeight: "85px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease", width: "100%", boxSizing: "border-box" }}>
+                    <Box display="flex" alignItems="center" justifyContent="center" width="100%">
+                      <Checkbox size="small" checked={sauses[saus]} onChange={() => handleSausChange(saus)} sx={{ p: 0, color: COLORS.secondary, "&.Mui-checked": { color: COLORS.primary } }} />
+                      <Typography sx={{ fontSize: "0.8rem", fontWeight: "900", lineHeight: 1.1, textAlign: "center" }}>{saus}</Typography>
                     </Box>
-                  </motion.div>
+                    <AnimatePresence>
+                      {sauses[saus] && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
+                          <FormControlLabel control={<Switch size="small" checked={sausesPisah[saus]} onChange={(e) => handleSausPisahChange(saus)} color="error" />} label={<Typography variant="caption" color="error" fontWeight="bold">Pisah</Typography>} sx={{ m: 0, ml: 1 }} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Box>
                 ))}
-              </AnimatePresence>
-            </List>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}><Typography variant="h6">Total Draf:</Typography><Typography variant="h4" fontWeight="bold" color={COLORS.primary}>Rp {tempCart.reduce((a, b) => a + b.harga, 0).toLocaleString()}</Typography></Box>
+              </Box>
+            </Box>
             <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
-              <Button fullWidth variant="contained" size="large" onClick={prosesPesananFinal} startIcon={editingCartId ? <SaveAs sx={{ fontSize: 30 }} /> : <ShoppingBasket sx={{ fontSize: 30 }} />} disabled={!!editingCartId} sx={{ height: "70px", borderRadius: 3, bgcolor: COLORS.textDark, fontSize: "1.3rem", fontWeight: "bold", "&:hover": { bgcolor: "black" } }}>{isGlobalEditMode ? `SIMPAN PERUBAHAN #${getTargetQueueNumber()}` : `PROSES SEMUA & NEXT (#${nomorAntrian})`}</Button>
-              {editingCartId && <Typography variant="caption" color="error" align="center" display="block">Selesaikan perubahan rincian dulu sebelum lanjut.</Typography>}
+              <Button fullWidth variant="contained" onClick={handleTakoyakiCartAction} disabled={totalPilihan === 0 && !isEditingFood} sx={{ bgcolor: isEditingFood ? COLORS.info : COLORS.primary, borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingFood ? "PERBARUI TAKOYAKI INI" : `+ TAMBAH TAKOYAKI ${totalPilihan > 0 ? `(Rp ${hitungHargaPorsi().toLocaleString()})` : ""}`}</Button>
             </motion.div>
-            <div ref={bottomRef} />
           </Paper>
-        )}
+
+          <Paper elevation={0} sx={{ p: 2, mb: 4, borderRadius: 4, bgcolor: "#e3f2fd", borderTop: `4px solid ${COLORS.info}`, opacity: isEditingFood ? 0.5 : 1, pointerEvents: isEditingFood ? "none" : "auto" }}>
+            <Typography variant="h6" fontWeight="bold" color={COLORS.info} sx={{ display: "flex", alignItems: "center", mb: 2 }}><LocalDrink sx={{ mr: 1 }} /> Menu Minuman</Typography>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight="bold">Air Mineral (Dingin / Biasa)</Typography>
+                <Typography variant="body2" color="text.secondary" fontWeight="bold">Rp 5.000 / botol</Typography>
+              </Box>
+              <Box display="flex" alignItems="center" sx={{ bgcolor: "white", borderRadius: 2, border: `1px solid ${COLORS.info}` }}>
+                <IconButton onClick={() => { setQtyAir(Math.max(0, qtyAir - 1)); playTone("click"); }} disabled={qtyAir === 0}><Remove color="info" /></IconButton>
+                <Typography fontWeight="bold" fontSize="1.2rem" sx={{ mx: 2, width: "20px", textAlign: "center" }}>{qtyAir}</Typography>
+                <IconButton onClick={() => { if (qtyAir < 10) { setQtyAir(qtyAir + 1); playTone("click"); } }} disabled={qtyAir >= 10}><Add color="info" /></IconButton>
+              </Box>
+            </Box>
+            <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
+              <Button fullWidth variant="contained" color="info" onClick={handleDrinkCartAction} disabled={qtyAir === 0 && !isEditingDrink} sx={{ borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingDrink ? "PERBARUI MINUMAN INI" : `+ TAMBAH MINUMAN ${qtyAir > 0 ? `(Rp ${(qtyAir * 5000).toLocaleString()})` : ""}`}</Button>
+            </motion.div>
+          </Paper>
+
+          {tempCart.length > 0 && (
+            <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: "#fffde7", border: "2px dashed orange" }}>
+              <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} gutterBottom>📝 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Keranjang Pesanan"}</Typography>
+              <List dense sx={{ p: 0, mb: 2 }}>
+                <AnimatePresence>
+                  {tempCart.map((item) => (
+                    <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} style={{ marginBottom: "12px" }}>
+                      <Box sx={{ border: `1px solid ${editingCartId === item.id ? COLORS.info : '#ddd'}`, borderRadius: 2, p: 1.5, bgcolor: editingCartId === item.id ? "#e3f2fd" : "white", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                          <Typography fontWeight="bold" fontSize="1.1rem" sx={{ pr: 2, lineHeight: 1.2 }}>{item.nama}</Typography>
+                          <Typography variant="subtitle1" fontWeight="bold" color={COLORS.primary} sx={{ whiteSpace: "nowrap" }}>Rp {item.harga.toLocaleString()}</Typography>
+                        </Box>
+                        
+                        {item.type === "food" && (
+                          <Box sx={{ mt: 0.5 }}>
+                            <Box display="flex" flexWrap="wrap" gap={0.75}>
+                              {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ bgcolor: COLORS.warning, color: "white", fontWeight: "bold", fontSize: "0.7rem", height: "24px" }} />}
+                              {(!item.sauses || item.sauses.length === 0) && <Chip label="Tanpa Saus" size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: "24px", color: "text.secondary", borderColor: "#ddd" }} />}
+                              {renderSauceChips(item.sauses, item.sausesPisah)}
+                            </Box>
+                          </Box>
+                        )}
+
+                        <Divider sx={{ my: 1.5, borderStyle: "dashed" }} />
+                        <Box display="flex" justifyContent="flex-end" gap={1.5}>
+                          <IconButton onClick={() => loadCartItemToForm(item)} color="primary" sx={{ bgcolor: "#e3f2fd", borderRadius: 2 }}><Edit /></IconButton>
+                          <IconButton onClick={() => duplicateItem(item)} color="default" sx={{ bgcolor: "#f5f5f5", borderRadius: 2 }}><ContentCopy /></IconButton>
+                          <IconButton color="error" onClick={() => hapusDariTemp(item.id)} sx={{ bgcolor: "#ffebee", borderRadius: 2 }}><Delete /></IconButton>
+                        </Box>
+                      </Box>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </List>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}><Typography variant="h6">Total Draf:</Typography><Typography variant="h4" fontWeight="bold" color={COLORS.primary}>Rp {tempCart.reduce((a, b) => a + b.harga, 0).toLocaleString()}</Typography></Box>
+              <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
+                <Button fullWidth variant="contained" size="large" onClick={prosesPesananFinal} startIcon={editingCartId ? <SaveAs sx={{ fontSize: 30 }} /> : <ShoppingBasket sx={{ fontSize: 30 }} />} disabled={!!editingCartId} sx={{ height: "70px", borderRadius: 3, bgcolor: COLORS.textDark, fontSize: "1.3rem", fontWeight: "bold", "&:hover": { bgcolor: "black" } }}>{isGlobalEditMode ? `SIMPAN PERUBAHAN #${getTargetQueueNumber()}` : `PROSES SEMUA & NEXT (#${nomorAntrian})`}</Button>
+                {editingCartId && <Typography variant="caption" color="error" align="center" display="block">Selesaikan perubahan rincian dulu sebelum lanjut.</Typography>}
+              </motion.div>
+              <div ref={bottomRef} />
+            </Paper>
+          )}
+        </Box>
       </Box>
     </Box>
   );

@@ -4,7 +4,7 @@ import {
   Checkbox, CssBaseline, Container, TextField,
   List, Snackbar, Alert, Switch, FormControlLabel
 } from "@mui/material";
-import { Add, Remove, Restaurant, Delete, RestartAlt, Send, Person, Storefront, LocalDrink, HourglassEmpty, CheckCircleOutline, CancelPresentation } from "@mui/icons-material";
+import { Add, Remove, Restaurant, Delete, RestartAlt, Send, Person, Storefront, LocalDrink, HourglassEmpty, CheckCircleOutline, CancelPresentation, NoFood } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { COLORS, VARIAN_ISIAN, SAUS_LIST } from "../utils/constants";
 import { generateSmartName, getSauceColor } from "../utils/helpers";
@@ -29,7 +29,36 @@ export default function CustomerPage() {
   const [antreanDiDepan, setAntreanDiDepan] = useState(0);
   const [editingCartId, setEditingCartId] = useState(null);
 
+  // FITUR BARU: Menangkap Status Toko (Buka/Tutup)
+  const [isShopOpen, setIsShopOpen] = useState(true);
+
   const totalPilihan = Object.values(isian).filter((val) => val > 0).length;
+
+  // Listener Real-time Status Kedai
+  useEffect(() => {
+  const unsubShop = onSnapshot(doc(db, "settings", "shop"), (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      
+      if (!data.isOpen) {
+        setIsShopOpen(false);
+      } else if (data.lastActive) {
+        // Cek apakah kasir masih aktif dalam 3 menit terakhir
+        const lastActiveTime = data.lastActive.toDate().getTime();
+        const now = new Date().getTime();
+        const selisihMenit = (now - lastActiveTime) / 1000 / 60;
+
+        if (selisihMenit > 3) {
+          // Kasir sudah tidak mengirim ping lebih dari 3 menit (Aplikasi ditutup/Mati)
+          setIsShopOpen(false);
+        } else {
+          setIsShopOpen(true);
+        }
+      }
+    }
+  });
+  return () => unsubShop();
+}, []);
 
   useEffect(() => {
     if (!activeOrderId) {
@@ -38,7 +67,6 @@ export default function CustomerPage() {
     }
     const unsubDoc = onSnapshot(doc(db, "orders", activeOrderId), (docSnap) => {
       if (!docSnap.exists()) {
-        // Fallback jika data terhapus manual tanpa status di Firestore
         localStorage.removeItem("ian_takoyaki_active_order_id");
         setActiveOrderId(null);
         setActiveOrderData(null);
@@ -53,7 +81,6 @@ export default function CustomerPage() {
     if (!activeOrderId) return;
     const q = query(collection(db, "orders"), orderBy("createdAt", "asc"));
     const unsubList = onSnapshot(q, (snapshot) => {
-      // Hanya menghitung antrean aktif yang belum selesai/batal
       const activeDocs = snapshot.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(d => d.statusPesanan !== "selesai" && d.statusPesanan !== "batal");
@@ -205,11 +232,10 @@ export default function CustomerPage() {
   const isEditingFood = editingCartId && cart.find(i => i.id === editingCartId)?.type === "food";
   const isEditingDrink = editingCartId && cart.find(i => i.id === editingCartId)?.type === "drink";
 
-  // --- RENDERING HALAMAN JIKA MEMILIKI SESI PESANAN AKTIF ---
+  // RENDERING KONDISI PEMESANAN AKTIF (Sisa Antrean / Selesai / Batal)
   if (activeOrderId && activeOrderData) {
     const isWaitingConfirm = activeOrderData.noAntrian === "Online";
 
-    // KONDISI A: PESANAN SELESAI DISAJIKAN (Kasir Klik Selesai)
     if (activeOrderData.statusPesanan === "selesai") {
       return (
         <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4, display: "flex", alignItems: "center" }}>
@@ -231,7 +257,6 @@ export default function CustomerPage() {
       );
     }
 
-    // KONDISI B: PESANAN DIBATALKAN KASIR (Kasir Klik Batalkan / Tolak)
     if (activeOrderData.statusPesanan === "batal") {
       return (
         <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4, display: "flex", alignItems: "center" }}>
@@ -253,7 +278,6 @@ export default function CustomerPage() {
       );
     }
 
-    // KONDISI C: SEDANG ANTRE JALAN (Tampilan Sisa Antrean)
     return (
       <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4 }}>
         <CssBaseline />
@@ -262,17 +286,11 @@ export default function CustomerPage() {
             <Box sx={{ mb: 2 }}>
               <HourglassEmpty sx={{ fontSize: 70, color: COLORS.secondary, animation: "spin 4s linear infinite" }} />
             </Box>
-            
             <Typography variant="h5" fontWeight="900" color="primary" gutterBottom>PESANAN TERKIRIM!</Typography>
-            <Typography variant="body1" fontWeight="bold" color="text.secondary" sx={{ mb: 3 }}>
-              Halo <b>{activeOrderData.namaPemesan}</b>, pesananmu sudah masuk ke dapur Ian Takoyaki.
-            </Typography>
-
+            <Typography variant="body1" fontWeight="bold" color="text.secondary" sx={{ mb: 3 }}>Halo <b>{activeOrderData.namaPemesan}</b>, pesananmu sudah masuk ke dapur Ian Takoyaki.</Typography>
             <Divider sx={{ my: 2 }} />
-
             <Box sx={{ bgcolor: isWaitingConfirm ? "#e3f2fd" : (antreanDiDepan === 0 ? "#e8f5e9" : "#fff8e1"), p: 3, borderRadius: 3, mb: 3, border: `2px dashed ${isWaitingConfirm ? COLORS.info : (antreanDiDepan === 0 ? COLORS.success : "orange")}` }}>
               <Typography variant="body2" fontWeight="bold" color="text.secondary">SISA ANTREAN SAAT INI:</Typography>
-              
               {isWaitingConfirm ? (
                 <>
                   <Typography variant="h5" fontWeight="900" color={COLORS.info} sx={{ my: 1.5 }}>MENUNGGU KONFIRMASI...</Typography>
@@ -290,15 +308,8 @@ export default function CustomerPage() {
                 </>
               )}
             </Box>
-
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              {isWaitingConfirm 
-                ? "Pesanan kamu akan segera diproses setelah diterima oleh kasir kami."
-                : "Boleh jalan-jalan santai dulu, nanti tinggal ambil di tenda ya!"}
-            </Typography>
-
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{isWaitingConfirm ? "Pesanan kamu akan segera diproses setelah diterima oleh kasir kami." : "Boleh jalan-jalan santai dulu, nanti tinggal ambil di tenda ya!"}</Typography>
             <Divider sx={{ my: 2 }} />
-
             <Typography variant="subtitle2" align="left" fontWeight="bold" color="text.primary" gutterBottom>Rincian Pesanan Kamu:</Typography>
             <List dense>
               {activeOrderData.items?.map((item, idx) => (
@@ -307,15 +318,12 @@ export default function CustomerPage() {
                   {item.type === "food" && (
                     <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
                       {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ height: "20px", fontSize: "0.65rem", bgcolor: COLORS.warning, color: "white" }} />}
-                      {item.sauses?.map(s => (
-                        <Chip key={s} label={`${s}${item.sausesPisah?.includes(s) ? " (PISAH)" : ""}`} size="small" color={getSauceColor(s)} sx={{ height: "20px", fontSize: "0.65rem" }} />
-                      ))}
+                      {item.sauses?.map(s => <Chip key={s} label={`${s}${item.sausesPisah?.includes(s) ? " (PISAH)" : ""}`} size="small" color={getSauceColor(s)} sx={{ height: "20px", fontSize: "0.65rem" }} />)}
                     </Box>
                   )}
                 </Box>
               ))}
             </List>
-            
             <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 2, p: 1.5, bgcolor: "#f5f5f5", borderRadius: 2 }}>
               <Typography fontWeight="bold">Total Pembayaran:</Typography>
               <Typography variant="h6" fontWeight="bold" color="primary">Rp {activeOrderData.totalTagihan?.toLocaleString()}</Typography>
@@ -326,7 +334,32 @@ export default function CustomerPage() {
     );
   }
 
-  // TAMPILAN STANDAR FORM BELANJA
+  // FITUR BARU: JIKA KEDAI TUTUP (DAN TIDAK ADA PESANAN AKTIF), TAMPILKAN BANNER TUTUP 
+  if (!isShopOpen) {
+    return (
+      <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 8, display: "flex", alignItems: "center" }}>
+        <CssBaseline />
+        <Container maxWidth="sm">
+          <Paper elevation={3} sx={{ p: 5, borderRadius: 4, bgcolor: "white", textAlign: "center", borderTop: `6px solid ${COLORS.primary}` }}>
+            <NoFood sx={{ fontSize: 90, color: COLORS.primary, mb: 2 }} />
+            <Typography variant="h4" fontWeight="900" color="primary" gutterBottom>KEDAI SEDANG TUTUP</Typography>
+            <Typography variant="h6" fontWeight="bold" color="text.secondary" sx={{ mb: 2 }}>🐙 Selamat Datang di Ian Takoyaki 🐙</Typography>
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.6, mb: 3 }}>
+              Maaf ya kak, saat ini kami sedang tidak menerima pesanan online karena kedai sedang tutup atau adonan sudah habis terjual.
+            </Typography>
+            <Box sx={{ bgcolor: "#fff3e0", p: 2, borderRadius: 2, border: "1px dashed orange" }}>
+              <Typography variant="body2" fontWeight="bold" color="warning.main">
+                Silakan datang kembali di jadwal operasional tenda lapak kami atau pantau media sosial kami ya kak. Sampai jumpa!
+              </Typography>
+            </Box>
+          </Paper>
+        </Container>
+      </Box>
+    );
+  }
+
+  // TAMPILAN FORM MENU BELANJA BIASA
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4 }}>
       <CssBaseline />
