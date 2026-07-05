@@ -59,19 +59,15 @@ export default function CashierPage() {
   };
 
   useEffect(() => {
-  // Jika toko tutup, tidak perlu kirim heartbeat
-  if (!isShopOpen) return;
-
-  // Kirim sinyal keaktifan setiap 60 detik
-  const interval = setInterval(async () => {
-    await setDoc(doc(db, "settings", "shop"), { 
-      isOpen: true,
-      lastActive: serverTimestamp() 
-    }, { merge: true });
-  }, 60000); 
-
-  return () => clearInterval(interval);
-}, [isShopOpen]);
+    if (!isShopOpen) return;
+    const interval = setInterval(async () => {
+      await setDoc(doc(db, "settings", "shop"), { 
+        isOpen: true,
+        lastActive: serverTimestamp() 
+      }, { merge: true });
+    }, 60000); 
+    return () => clearInterval(interval);
+  }, [isShopOpen]);
 
   useEffect(() => {
     const unsubShop = onSnapshot(doc(db, "settings", "shop"), (docSnap) => {
@@ -82,6 +78,7 @@ export default function CashierPage() {
     return () => unsubShop();
   }, []);
 
+  // UPDATE: Memastikan properti createdAt ikut terambil untuk fungsi hitung mundur
   useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -92,13 +89,48 @@ export default function CashierPage() {
         
         data.items.forEach((item) => {
           flatItems.push({
-            ...item, docId: doc.id, noAntrian: data.noAntrian, namaPemesan: data.namaPemesan, jamMasuk: data.jamMasuk, statusBayar: data.statusBayar,
+            ...item, docId: doc.id, noAntrian: data.noAntrian, namaPemesan: data.namaPemesan, jamMasuk: data.jamMasuk, statusBayar: data.statusBayar, createdAt: data.createdAt
           });
         });
       });
       setMasterQueue(flatItems);
     });
     return () => unsubscribe();
+  }, []);
+
+  // FITUR BARU: Auto Cancel Background Worker (15 Menit)
+  const masterQueueRef = useRef([]);
+  useEffect(() => {
+    masterQueueRef.current = masterQueue;
+  }, [masterQueue]);
+
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = new Date();
+      const currentQueue = masterQueueRef.current;
+      const onlineGroups = {};
+      
+      currentQueue.forEach(item => {
+        if (item.noAntrian === "Online" && item.createdAt && typeof item.createdAt.toDate === 'function') {
+          onlineGroups[item.docId] = item.createdAt.toDate();
+        }
+      });
+
+      Object.keys(onlineGroups).forEach(async (docId) => {
+        const orderTime = onlineGroups[docId];
+        const diffMins = (now - orderTime) / 1000 / 60;
+        if (diffMins >= 15) {
+          try {
+            // Otomatis batalkan pesanan jika lewat 15 menit
+            await updateDoc(doc(db, "orders", docId), { statusPesanan: "batal" });
+          } catch (error) {
+            console.error("Gagal membatalkan pesanan expired:", error);
+          }
+        }
+      });
+    }, 60000); // Sistem mengecek setiap 1 Menit sekali
+
+    return () => clearInterval(cleanupInterval);
   }, []);
 
   const handleToggleShop = async () => {
@@ -261,7 +293,7 @@ export default function CashierPage() {
   };
 
   const groupedOrders = masterQueue.reduce((acc, item) => {
-    if (!acc[item.docId]) { acc[item.docId] = { docId: item.docId, noAntrian: item.noAntrian, namaPemesan: item.namaPemesan, jamMasuk: item.jamMasuk, statusBayar: item.statusBayar, items: [], totalTagihan: 0 }; }
+    if (!acc[item.docId]) { acc[item.docId] = { docId: item.docId, noAntrian: item.noAntrian, namaPemesan: item.namaPemesan, jamMasuk: item.jamMasuk, statusBayar: item.statusBayar, createdAt: item.createdAt, items: [], totalTagihan: 0 }; }
     acc[item.docId].items.push(item); acc[item.docId].totalTagihan += item.harga; return acc;
   }, {});
   
@@ -383,7 +415,7 @@ export default function CashierPage() {
       </Dialog>
 
       {/* --- KIRI: KDS --- */}
-      <Box sx={{ width: isMobile ? "100%" : "45%", minWidth: isMobile ? "100%" : "480px", height: isMobile ? "40%" : "100%", bgcolor: "white", borderRight: "2px solid #ffccbc", display: "flex", flexDirection: "column", zIndex: 2, boxShadow: "4px 0 15px rgba(211, 47, 47, 0.1)" }}>
+      <Box sx={{ width: isMobile ? "100%" : "45%", minWidth: isMobile ? "100%" : "480px", flexShrink: 0, height: isMobile ? "40%" : "100%", bgcolor: "white", borderRight: "2px solid #ffccbc", display: "flex", flexDirection: "column", zIndex: 2, boxShadow: "4px 0 15px rgba(211, 47, 47, 0.1)" }}>
         <Box sx={{ p: 2.5, bgcolor: COLORS.primary, color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <Typography variant="h5" fontWeight="bold">Daftar Pesanan</Typography>
           <Box display="flex" alignItems="center" gap={1}>
@@ -396,14 +428,12 @@ export default function CashierPage() {
           </Box>
         </Box>
 
-        {/* Dropdown Menu Pengaturan Kasir */}
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)} PaperProps={{ sx: { borderRadius: 3, minWidth: 220, mt: 1, boxShadow: "0px 4px 20px rgba(0,0,0,0.1)" } }}>
           <MenuItem onClick={() => { handleToggleShop(); setMenuAnchor(null); }} sx={{ py: 1.5 }}>
             <ListItemIcon><Store fontSize="small" color={isShopOpen ? "success" : "error"} /></ListItemIcon>
             <ListItemText primary={`Status Kedai: ${isShopOpen ? "BUKA" : "TUTUP"}`} primaryTypographyProps={{ fontWeight: "bold", color: isShopOpen ? "success.main" : "error.main" }} />
           </MenuItem>
           <Divider sx={{ my: 0.5 }} />
-          {/* PERBAIKAN FITUR: Otomatis menutup toko di Firebase saat Kasir Logout */}
           <MenuItem onClick={async () => { 
             await setDoc(doc(db, "settings", "shop"), { isOpen: false }, { merge: true });
             signOut(auth); 
@@ -426,8 +456,21 @@ export default function CashierPage() {
               <AnimatePresence>
                 {sortedGroups.map((group) => {
                   const isAllLunas = group.items.every((i) => i.statusBayar === "lunas");
+                  const isAllCooked = group.items.length > 0 && group.items.every((i) => i.statusMasak === "selesai");
+                  
+                  const showEditBtn = !isAllLunas && isShopOpen && !isAllCooked;
+                  const showSelesaiBtn = isAllLunas;
+
                   const isExpanded = expandedAntrian === group.docId;
                   const isOnlineOrder = group.noAntrian === "Online";
+                  
+                  // Hitung Sisa Waktu untuk Peringatan di UI Kasir
+                  let diffMins = 0;
+                  if (isOnlineOrder && group.createdAt && typeof group.createdAt.toDate === 'function') {
+                    diffMins = Math.floor((new Date() - group.createdAt.toDate()) / 1000 / 60);
+                  }
+                  const minsLeft = 15 - diffMins;
+                  const isWarningTime = minsLeft <= 5;
                   
                   const isThisGroupBeingEdited = globalEditingDocId === group.docId;
                   const isAnotherGroupBeingEdited = globalEditingDocId && globalEditingDocId !== group.docId;
@@ -450,7 +493,18 @@ export default function CashierPage() {
                                 <Typography variant="h5" fontWeight="bold" color={COLORS.textDark}>{group.namaPemesan}</Typography>
                                 {isThisGroupBeingEdited && <Chip label="SEDANG DIUBAH ✏️" size="small" sx={{ bgcolor: "orange", color: "white", fontWeight: "bold" }} />}
                               </Box>
-                              <Typography variant="body1" color={COLORS.textGrey} fontWeight="bold">{group.items.length} Item • {group.jamMasuk}</Typography>
+                              
+                              <Box display="flex" alignItems="center" gap={1}>
+                                <Typography variant="body1" color={COLORS.textGrey} fontWeight="bold">{group.items.length} Item • {group.jamMasuk}</Typography>
+                                {isOnlineOrder && (
+                                  <Chip 
+                                    label={minsLeft > 0 ? `Sisa: ${minsLeft} mnt` : "Kedaluwarsa"} 
+                                    size="small" 
+                                    color={isWarningTime ? "error" : "warning"} 
+                                    sx={{ fontWeight: "bold", height: "20px", fontSize: "0.7rem" }} 
+                                  />
+                                )}
+                              </Box>
                             </Box>
                             <Box textAlign="right">
                               <Typography variant="h5" fontWeight="bold" color={COLORS.primary}>Rp {group.totalTagihan.toLocaleString()}</Typography>
@@ -468,6 +522,7 @@ export default function CashierPage() {
                             </Box>
                           )}
                         </CardActionArea>
+                        
                         <Collapse in={isExpanded} unmountOnExit>
                           <Box sx={{ bgcolor: "#fff" }}>
                             {group.items.map((item) => (
@@ -487,6 +542,7 @@ export default function CashierPage() {
                                 </Box>
                               </Box>
                             ))}
+                            
                             <Box sx={{ p: 2, bgcolor: "#fafafa", borderTop: "2px dashed #eee", display: "flex", flexDirection: "column", gap: 1 }}>
                               {isThisGroupBeingEdited ? (
                                 <Typography variant="subtitle1" color="warning.main" fontWeight="bold" sx={{ width: "100%", textAlign: "center", py: 1.5, bgcolor: "#fff3e0", borderRadius: 2 }}>
@@ -498,16 +554,33 @@ export default function CashierPage() {
                                   <Button fullWidth variant="contained" size="large" color="info" onClick={async () => { playTone("success"); await updateDoc(doc(db, "orders", group.docId), { noAntrian: nomorAntrian }); setNomorAntrian(prev => prev + 1); setSnackbar({ open: true, message: `Pesanan diterima sebagai Antrean #${nomorAntrian}! 🐙`, severity: "success" }); }} sx={{ fontWeight: "bold" }}>TERIMA PESANAN</Button>
                                 </Box>
                               ) : (
-                                <>
-                                  <Box display="flex" gap={1} width="100%">
-                                    {!isAllLunas && <Button fullWidth variant="outlined" size="large" onClick={() => editPesananFullBatch(group.noAntrian, group.namaPemesan, group.docId)} startIcon={<Edit />} sx={{ color: COLORS.textDark, borderColor: COLORS.textDark, fontWeight: "bold" }}>UBAH SEMUA</Button>}
-                                    <Button fullWidth variant="outlined" color="error" size="large" onClick={() => requestCancelOrder(group.noAntrian, group.docId)} startIcon={<Delete />} sx={{ fontWeight: "bold" }}>BATALKAN</Button>
+                                <Box display="flex" flexDirection="column" gap={1} width="100%" component={motion.div} layout>
+                                  <Box display="flex" gap={1} width="100%" component={motion.div} layout>
+                                    <AnimatePresence>
+                                      {showEditBtn && (
+                                        <motion.div key="btn-ubah" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
+                                          <Button fullWidth variant="outlined" size="large" onClick={() => editPesananFullBatch(group.noAntrian, group.namaPemesan, group.docId)} startIcon={<Edit />} sx={{ color: COLORS.textDark, borderColor: COLORS.textDark, fontWeight: "bold" }}>UBAH SEMUA</Button>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                    <motion.div layout style={{ flex: 1 }}>
+                                      <Button fullWidth variant="outlined" color="error" size="large" onClick={() => requestCancelOrder(group.noAntrian, group.docId)} startIcon={<Delete />} sx={{ fontWeight: "bold" }}>BATALKAN</Button>
+                                    </motion.div>
                                   </Box>
-                                  <Box display="flex" gap={1} width="100%">
-                                    <Button fullWidth variant="contained" size="large" color={isAllLunas ? "success" : "error"} onClick={() => handleBayarLunasGroup(group.noAntrian, group.docId)} startIcon={isAllLunas ? <MoneyOff /> : <AttachMoney />} sx={{ fontSize: "1rem", fontWeight: "bold" }}>{isAllLunas ? "BATAL LUNAS" : "BAYAR SEMUA"}</Button>
-                                    <Button fullWidth variant="contained" size="large" sx={{ bgcolor: COLORS.secondary, color: "white", fontSize: "1rem", fontWeight: "bold" }} onClick={() => requestFinishOrder(group.noAntrian, group.docId)} startIcon={<Kitchen />}>SELESAI</Button>
+                                  
+                                  <Box display="flex" gap={1} width="100%" component={motion.div} layout>
+                                    <motion.div layout style={{ flex: 1 }}>
+                                      <Button fullWidth variant="contained" size="large" color={isAllLunas ? "success" : "error"} onClick={() => handleBayarLunasGroup(group.noAntrian, group.docId)} startIcon={isAllLunas ? <MoneyOff /> : <AttachMoney />} sx={{ fontSize: "1rem", fontWeight: "bold" }}>{isAllLunas ? "BATAL LUNAS" : "BAYAR SEMUA"}</Button>
+                                    </motion.div>
+                                    <AnimatePresence>
+                                      {showSelesaiBtn && (
+                                        <motion.div key="btn-selesai" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
+                                          <Button fullWidth variant="contained" size="large" sx={{ bgcolor: COLORS.secondary, color: "white", fontSize: "1rem", fontWeight: "bold" }} onClick={() => requestFinishOrder(group.noAntrian, group.docId)} startIcon={<Kitchen />}>SELESAI</Button>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
                                   </Box>
-                                </>
+                                </Box>
                               )}
                             </Box>
                           </Box>
@@ -526,14 +599,12 @@ export default function CashierPage() {
       <Box sx={{ flexGrow: 1, height: isMobile ? "60%" : "100%", overflowY: "auto", p: isMobile ? 2 : 4, bgcolor: COLORS.background }}>
         <Typography variant="h5" fontWeight="bold" color={COLORS.textDark} sx={{ mb: 2, display: "flex", alignItems: "center" }}>🐙 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Buat Pesanan Baru"}</Typography>
         
-        {/* PERBAIKAN UX: Menampilkan banner peringatan jika kedai ditutup kasir */}
         {!isShopOpen && (
           <Alert severity="warning" variant="filled" sx={{ mb: 3, fontWeight: "bold", borderRadius: 3, boxShadow: "0px 4px 10px rgba(0,0,0,0.05)" }}>
             ⚠️ KEDAI SEDANG TUTUP! Buka status kedai melalui menu titik tiga di pojok kiri atas untuk dapat menginput pesanan secara langsung di kasir.
           </Alert>
         )}
 
-        {/* PERBAIKAN UX: Container diblokir total & menjadi buram secara visual jika status kedai TUTUP */}
         <Box sx={{ opacity: isShopOpen ? 1 : 0.4, pointerEvents: isShopOpen ? "auto" : "none", transition: "all 0.3s ease" }}>
           
           <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: 3, borderTop: `4px solid ${COLORS.success}`, bgcolor: "white" }}>

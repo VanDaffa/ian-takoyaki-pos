@@ -4,7 +4,7 @@ import {
   Checkbox, CssBaseline, Container, TextField,
   List, Snackbar, Alert, Switch, FormControlLabel
 } from "@mui/material";
-import { Add, Remove, Restaurant, Delete, RestartAlt, Send, Person, Storefront, LocalDrink, HourglassEmpty, CheckCircleOutline, CancelPresentation, NoFood } from "@mui/icons-material";
+import { Add, Remove, Restaurant, Delete, RestartAlt, Send, Person, Storefront, LocalDrink, HourglassEmpty, CheckCircleOutline, CancelPresentation, NoFood, QrCode2 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { COLORS, VARIAN_ISIAN, SAUS_LIST } from "../utils/constants";
 import { generateSmartName, getSauceColor } from "../utils/helpers";
@@ -29,36 +29,30 @@ export default function CustomerPage() {
   const [antreanDiDepan, setAntreanDiDepan] = useState(0);
   const [editingCartId, setEditingCartId] = useState(null);
 
-  // FITUR BARU: Menangkap Status Toko (Buka/Tutup)
   const [isShopOpen, setIsShopOpen] = useState(true);
 
   const totalPilihan = Object.values(isian).filter((val) => val > 0).length;
 
-  // Listener Real-time Status Kedai
   useEffect(() => {
-  const unsubShop = onSnapshot(doc(db, "settings", "shop"), (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      
-      if (!data.isOpen) {
-        setIsShopOpen(false);
-      } else if (data.lastActive) {
-        // Cek apakah kasir masih aktif dalam 3 menit terakhir
-        const lastActiveTime = data.lastActive.toDate().getTime();
-        const now = new Date().getTime();
-        const selisihMenit = (now - lastActiveTime) / 1000 / 60;
-
-        if (selisihMenit > 3) {
-          // Kasir sudah tidak mengirim ping lebih dari 3 menit (Aplikasi ditutup/Mati)
+    const unsubShop = onSnapshot(doc(db, "settings", "shop"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (!data.isOpen) {
           setIsShopOpen(false);
-        } else {
-          setIsShopOpen(true);
+        } else if (data.lastActive) {
+          const lastActiveTime = data.lastActive.toDate().getTime();
+          const now = new Date().getTime();
+          const selisihMenit = (now - lastActiveTime) / 1000 / 60;
+          if (selisihMenit > 3) {
+            setIsShopOpen(false);
+          } else {
+            setIsShopOpen(true);
+          }
         }
       }
-    }
-  });
-  return () => unsubShop();
-}, []);
+    });
+    return () => unsubShop();
+  }, []);
 
   useEffect(() => {
     if (!activeOrderId) {
@@ -144,12 +138,10 @@ export default function CustomerPage() {
 
   const addTakoyakiToCart = () => {
     if (totalPilihan === 0) return;
-
     if (editingCartId && cart.find(i => i.id === editingCartId)?.type === "food") {
       setCart(cart.map(item => item.id === editingCartId ? { ...item, nama: generateSmartName(isian), detail: isian, sauses: Object.keys(sauses).filter(k => sauses[k]), sausesPisah: Object.keys(sausesPisah).filter(k => sausesPisah[k]), katsuobushi: pakeKatsuobushi, harga: hitungHargaPorsi() } : item));
       cancelEditMode(); setSnackbar({ open: true, message: "Takoyaki berhasil diperbarui!", severity: "success" }); playTone("success"); return;
     }
-
     const newItem = {
       id: Date.now(), nama: generateSmartName(isian), type: "food", qty: 1, detail: isian,
       sauses: Object.keys(sauses).filter((key) => sauses[key]),
@@ -163,12 +155,10 @@ export default function CustomerPage() {
 
   const addDrinkToCart = () => {
     if (qtyAir === 0) return;
-
     if (editingCartId && cart.find(i => i.id === editingCartId)?.type === "drink") {
       setCart(cart.map(item => item.id === editingCartId ? { ...item, qty: qtyAir, nama: `Air Mineral (${qtyAir}x)`, harga: 5000 * qtyAir } : item));
       cancelEditMode(); setSnackbar({ open: true, message: "Minuman berhasil diperbarui!", severity: "success" }); playTone("success"); return;
     }
-
     const existingWaterIndex = cart.findIndex((item) => item.type === "drink");
     if (existingWaterIndex !== -1) {
       const updatedCart = [...cart];
@@ -232,7 +222,6 @@ export default function CustomerPage() {
   const isEditingFood = editingCartId && cart.find(i => i.id === editingCartId)?.type === "food";
   const isEditingDrink = editingCartId && cart.find(i => i.id === editingCartId)?.type === "drink";
 
-  // RENDERING KONDISI PEMESANAN AKTIF (Sisa Antrean / Selesai / Batal)
   if (activeOrderId && activeOrderData) {
     const isWaitingConfirm = activeOrderData.noAntrian === "Online";
 
@@ -266,10 +255,10 @@ export default function CustomerPage() {
               <CancelPresentation sx={{ fontSize: 80, color: "error.main", mb: 2 }} />
               <Typography variant="h4" fontWeight="900" color="error.main" gutterBottom>PESANAN DIBATALKAN</Typography>
               <Typography variant="h6" fontWeight="bold" color="text.primary" sx={{ mb: 2 }}>
-                Pesanan atas nama "{activeOrderData.namaPemesan}" telah dibatalkan di sistem.
+                Maaf, pesanan atas nama "{activeOrderData.namaPemesan}" telah dibatalkan.
               </Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 4, bgcolor: "#ffebee", p: 2, borderRadius: 2, fontWeight: "bold" }}>
-                ⚠️ Harap lakukan konfirmasi atau berbicara langsung dengan kasir di tenda untuk rincian pembatalan pesanan kamu.
+                ⚠️ Pembatalan bisa terjadi karena melewati batas waktu pembayaran 15 menit atau ditolak oleh kasir. Silakan pesan ulang atau hubungi kasir.
               </Typography>
               <Button fullWidth variant="outlined" color="inherit" onClick={resetSesiPelanggan} sx={{ height: "55px", borderRadius: 3, fontWeight: "bold", fontSize: "1.1rem" }}>KEMBALI KE MENU KEDAI</Button>
             </Paper>
@@ -291,10 +280,37 @@ export default function CustomerPage() {
             <Divider sx={{ my: 2 }} />
             <Box sx={{ bgcolor: isWaitingConfirm ? "#e3f2fd" : (antreanDiDepan === 0 ? "#e8f5e9" : "#fff8e1"), p: 3, borderRadius: 3, mb: 3, border: `2px dashed ${isWaitingConfirm ? COLORS.info : (antreanDiDepan === 0 ? COLORS.success : "orange")}` }}>
               <Typography variant="body2" fontWeight="bold" color="text.secondary">SISA ANTREAN SAAT INI:</Typography>
+              
+              {/* LOGIKA TAMPILAN BARU UNTUK GEOFENCING / TIMEOUT & QRIS */}
               {isWaitingConfirm ? (
                 <>
-                  <Typography variant="h5" fontWeight="900" color={COLORS.info} sx={{ my: 1.5 }}>MENUNGGU KONFIRMASI...</Typography>
-                  <Chip label="Kasir sedang mengecek pesananmu" color="info" sx={{ fontWeight: "bold" }} />
+                  <Typography variant="h5" fontWeight="900" color={COLORS.info} sx={{ my: 1.5 }}>MENUNGGU PEMBAYARAN...</Typography>
+                  <Chip label="Kasir menunggu konfirmasi bayar" color="info" sx={{ fontWeight: "bold" }} />
+                  
+                  <Box sx={{ mt: 3, p: 2, bgcolor: "white", borderRadius: 3, border: `2px dashed ${COLORS.info}` }}>
+                    <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>LAKUKAN PEMBAYARAN:</Typography>
+                    <Box display="flex" justifyContent="center" my={1}>
+                      {/* Gambar QRIS diletakkan di sini */}
+                        <img 
+                          src="\src\assets\qris-ian.jpg" 
+                          alt="QRIS IAN Takoyaki" 
+                          style={{ 
+                            width: "175px", // Bisa kamu atur ukurannya agar pas
+                            height: "auto", 
+                            borderRadius: "8px", 
+                            boxShadow: "0px 4px 10px rgba(0,0,0,0.1)" 
+                          }} 
+                        />
+                    </Box>
+                    <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Scan QRIS / Bayar ke Kasir</Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">Tunjukkan bukti bayar agar pesananmu segera dimasak.</Typography>
+                  </Box>
+
+                  <Alert severity="warning" icon={<HourglassEmpty />} sx={{ mt: 2, textAlign: "left", borderRadius: 2 }}>
+                     <Typography variant="caption" fontWeight="bold">
+                        Batas konfirmasi: 15 Menit. Pesanan otomatis batal jika dibiarkan.
+                     </Typography>
+                  </Alert>
                 </>
               ) : antreanDiDepan === 0 ? (
                 <>
@@ -308,7 +324,10 @@ export default function CustomerPage() {
                 </>
               )}
             </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>{isWaitingConfirm ? "Pesanan kamu akan segera diproses setelah diterima oleh kasir kami." : "Boleh jalan-jalan santai dulu, nanti tinggal ambil di tenda ya!"}</Typography>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              {isWaitingConfirm ? "Pesanan belum masuk daftar masak. Silakan selesaikan pembayaran dulu ya kak!" : "Boleh jalan-jalan santai dulu, nanti tinggal ambil di tenda ya!"}
+            </Typography>
             <Divider sx={{ my: 2 }} />
             <Typography variant="subtitle2" align="left" fontWeight="bold" color="text.primary" gutterBottom>Rincian Pesanan Kamu:</Typography>
             <List dense>
@@ -325,7 +344,7 @@ export default function CustomerPage() {
               ))}
             </List>
             <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 2, p: 1.5, bgcolor: "#f5f5f5", borderRadius: 2 }}>
-              <Typography fontWeight="bold">Total Pembayaran:</Typography>
+              <Typography fontWeight="bold">Total Tagihan:</Typography>
               <Typography variant="h6" fontWeight="bold" color="primary">Rp {activeOrderData.totalTagihan?.toLocaleString()}</Typography>
             </Box>
           </Paper>
@@ -334,7 +353,6 @@ export default function CustomerPage() {
     );
   }
 
-  // FITUR BARU: JIKA KEDAI TUTUP (DAN TIDAK ADA PESANAN AKTIF), TAMPILKAN BANNER TUTUP 
   if (!isShopOpen) {
     return (
       <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 8, display: "flex", alignItems: "center" }}>
@@ -359,7 +377,6 @@ export default function CustomerPage() {
     );
   }
 
-  // TAMPILAN FORM MENU BELANJA BIASA
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4 }}>
       <CssBaseline />
