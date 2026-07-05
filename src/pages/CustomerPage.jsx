@@ -12,6 +12,7 @@ import { playTone } from "../utils/soundEngine";
 
 import { db } from "../utils/firebase";
 import { collection, addDoc, serverTimestamp, doc, onSnapshot, query, orderBy } from "firebase/firestore";
+import qrisImage from "../assets/qris-ian.jpg";
 
 export default function CustomerPage() {
   const [isian, setIsian] = useState({});
@@ -292,7 +293,7 @@ export default function CustomerPage() {
                     <Box display="flex" justifyContent="center" my={1}>
                       {/* Gambar QRIS diletakkan di sini */}
                         <img 
-                          src="\src\assets\qris-ian.jpg" 
+                          src={qrisImage} 
                           alt="QRIS IAN Takoyaki" 
                           style={{ 
                             width: "175px", // Bisa kamu atur ukurannya agar pas
