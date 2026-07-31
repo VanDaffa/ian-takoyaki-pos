@@ -78,7 +78,6 @@ export default function CashierPage() {
     return () => unsubShop();
   }, []);
 
-  // UPDATE: Memastikan properti createdAt ikut terambil untuk fungsi hitung mundur
   useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -98,7 +97,6 @@ export default function CashierPage() {
     return () => unsubscribe();
   }, []);
 
-  // FITUR BARU: Auto Cancel Background Worker (15 Menit)
   const masterQueueRef = useRef([]);
   useEffect(() => {
     masterQueueRef.current = masterQueue;
@@ -121,14 +119,13 @@ export default function CashierPage() {
         const diffMins = (now - orderTime) / 1000 / 60;
         if (diffMins >= 15) {
           try {
-            // Otomatis batalkan pesanan jika lewat 15 menit
             await updateDoc(doc(db, "orders", docId), { statusPesanan: "batal" });
           } catch (error) {
             console.error("Gagal membatalkan pesanan expired:", error);
           }
         }
       });
-    }, 60000); // Sistem mengecek setiap 1 Menit sekali
+    }, 60000); 
 
     return () => clearInterval(cleanupInterval);
   }, []);
@@ -618,11 +615,21 @@ export default function CashierPage() {
           <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 4, bgcolor: "white", borderTop: `4px solid ${COLORS.primary}`, opacity: isEditingDrink ? 0.5 : 1, pointerEvents: isEditingDrink ? "none" : "auto" }}>
             <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Restaurant sx={{ mr: 1 }} /> Menu Takoyaki</Typography>
             
-            <motion.div whileTap={{ scale: 0.95 }} style={{ marginBottom: "16px", width: "100%" }}>
-              <Button fullWidth variant="contained" onClick={setPaketCampur} startIcon={<Restaurant />} sx={{ height: "50px", bgcolor: COLORS.secondary, fontSize: "1rem", fontWeight: "bold" }}>PAKET CAMPUR (15K)</Button>
-            </motion.div>
-            
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}><Box display="flex" alignItems="center" gap={1}><Typography variant="subtitle1" fontWeight="bold">Racik Isian:</Typography><Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "default"} size="small" sx={{ fontWeight: "bold" }} /></Box><Button size="small" color="error" startIcon={<RestartAlt />} onClick={clearTakoyakiForm} sx={{ textTransform: "none", fontWeight: "bold" }}>Kosongkan</Button></Box>
+            {/* PERBAIKAN: Memindahkan tombol Paket Campur ke sebaris dengan Kosongkan untuk UX yang lebih ringkas */}
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+              <Box display="flex" alignItems="center" gap={1}>
+                <Typography variant="subtitle1" fontWeight="bold">Racik Isian:</Typography>
+                <Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "default"} size="small" sx={{ fontWeight: "bold" }} />
+              </Box>
+              <Box display="flex" alignItems="center" gap={1}>
+                <motion.div whileTap={{ scale: 0.95 }}>
+                  <Button size="small" variant="contained" onClick={setPaketCampur} sx={{ bgcolor: COLORS.secondary, color: "white", fontWeight: "bold", borderRadius: 1.5, px: 2, boxShadow: "none" }}>
+                    PILIH CAMPUR
+                  </Button>
+                </motion.div>
+                <Button size="small" color="error" startIcon={<RestartAlt />} onClick={clearTakoyakiForm} sx={{ textTransform: "none", fontWeight: "bold" }}>Kosongkan</Button>
+              </Box>
+            </Box>
             
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 3 }}>
               {VARIAN_ISIAN.map((item) => (

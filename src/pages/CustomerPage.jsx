@@ -1,20 +1,26 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Box, Grid, Typography, Card, Button, IconButton, Chip, Divider, Paper,
-  Checkbox, CssBaseline, Container, TextField,
-  List, Snackbar, Alert, Switch, FormControlLabel
+  Box, Typography, Card, Button, IconButton, Chip, Divider, Paper,
+  Checkbox, CssBaseline, Container, TextField, List, Snackbar, Alert, Switch, FormControlLabel
 } from "@mui/material";
-import { Add, Remove, Restaurant, Delete, RestartAlt, Send, Person, Storefront, LocalDrink, HourglassEmpty, CheckCircleOutline, CancelPresentation, NoFood, QrCode2 } from "@mui/icons-material";
+import { 
+  Add, Remove, Restaurant, Delete, Send, Person, Storefront, LocalDrink, 
+  HourglassEmpty, CheckCircleOutline, CancelPresentation, NoFood, Stars
+} from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import { COLORS, VARIAN_ISIAN, SAUS_LIST } from "../utils/constants";
-import { generateSmartName, getSauceColor } from "../utils/helpers";
+import { generateSmartName } from "../utils/helpers";
 import { playTone } from "../utils/soundEngine";
 
 import { db } from "../utils/firebase";
 import { collection, addDoc, serverTimestamp, doc, onSnapshot, query, orderBy } from "firebase/firestore";
+
+// IMPORT GAMBAR QRIS
 import qrisImage from "../assets/qris-ian.jpg";
 
 export default function CustomerPage() {
+  const [modeRacik, setModeRacik] = useState("campur");
+
   const [isian, setIsian] = useState({});
   const [sauses, setSauses] = useState({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
   const [sausesPisah, setSausesPisah] = useState({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
@@ -23,16 +29,22 @@ export default function CustomerPage() {
   const [namaPelanggan, setNamaPelanggan] = useState("");
   const [cart, setCart] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "info" });
-  const bottomRef = useRef(null);
-
+  
   const [activeOrderId, setActiveOrderId] = useState(localStorage.getItem("ian_takoyaki_active_order_id") || null);
   const [activeOrderData, setActiveOrderData] = useState(null);
   const [antreanDiDepan, setAntreanDiDepan] = useState(0);
-  const [editingCartId, setEditingCartId] = useState(null);
 
   const [isShopOpen, setIsShopOpen] = useState(true);
 
   const totalPilihan = Object.values(isian).filter((val) => val > 0).length;
+
+  useEffect(() => {
+    if (modeRacik === "campur") {
+      setIsian({ sosis: 1, cumi: 1, kepiting: 1, keju: 1, kornet: 1, gurita: 0 });
+    } else {
+      setIsian({}); 
+    }
+  }, [modeRacik]);
 
   useEffect(() => {
     const unsubShop = onSnapshot(doc(db, "settings", "shop"), (docSnap) => {
@@ -88,6 +100,18 @@ export default function CustomerPage() {
     return () => unsubList();
   }, [activeOrderId]);
 
+  const hitungHargaPorsi = () => {
+    const activeKeys = Object.keys(isian).filter(key => isian[key] > 0);
+    if (activeKeys.length === 0) return 15000;
+    if (activeKeys.length === 1 && activeKeys.includes("gurita")) return 20000;
+    return 15000;
+  };
+
+  const isGuritaOnly = () => {
+    const activeKeys = Object.keys(isian).filter(key => isian[key] > 0);
+    return activeKeys.length === 1 && activeKeys.includes("gurita");
+  };
+
   const toggleIsian = (id) => {
     const isSelected = isian[id] > 0;
     if (isSelected) {
@@ -99,49 +123,10 @@ export default function CustomerPage() {
     }
   };
 
-  const clearTakoyakiForm = () => {
-    setIsian({}); setSauses({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
-    setSausesPisah({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
-    setPakeKatsuobushi(false); playTone("delete");
-  };
-
-  const cancelEditMode = () => {
-    clearTakoyakiForm();
-    setEditingCartId(null);
-    setQtyAir(0);
-  };
-
-  const toggleSemuaSaus = () => {
-    const allSelected = Object.values(sauses).every((val) => val === true);
-    setSauses({ "Saus Sambel": !allSelected, "Saus Tomat": !allSelected, Mayonaise: !allSelected });
-    if (allSelected) setSausesPisah({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
-    playTone("click");
-  };
-
-  const hitungHargaPorsi = () => {
-    const activeKeys = Object.keys(isian).filter(key => isian[key] > 0);
-    if (activeKeys.length === 0) return 0;
-    if (activeKeys.length === 1 && activeKeys.includes("gurita")) return 20000;
-    return 15000;
-  };
-
-  const loadCartItemToForm = (item) => {
-    clearTakoyakiForm(); setQtyAir(0); setEditingCartId(item.id);
-    if (item.type === "drink") { setQtyAir(item.qty); } 
-    else {
-      setIsian(item.detail); setPakeKatsuobushi(item.katsuobushi);
-      const newSauses = { "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false }; item.sauses.forEach((s) => (newSauses[s] = true)); setSauses(newSauses);
-      const newSausesPisah = { "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false }; if (item.sausesPisah) item.sausesPisah.forEach((s) => (newSausesPisah[s] = true)); setSausesPisah(newSausesPisah);
-    }
-    setSnackbar({ open: true, message: "Rincian dimuat ke form.", severity: "info" });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const addTakoyakiToCart = () => {
-    if (totalPilihan === 0) return;
-    if (editingCartId && cart.find(i => i.id === editingCartId)?.type === "food") {
-      setCart(cart.map(item => item.id === editingCartId ? { ...item, nama: generateSmartName(isian), detail: isian, sauses: Object.keys(sauses).filter(k => sauses[k]), sausesPisah: Object.keys(sausesPisah).filter(k => sausesPisah[k]), katsuobushi: pakeKatsuobushi, harga: hitungHargaPorsi() } : item));
-      cancelEditMode(); setSnackbar({ open: true, message: "Takoyaki berhasil diperbarui!", severity: "success" }); playTone("success"); return;
+    if (totalPilihan === 0) {
+      setSnackbar({ open: true, message: "Pilih minimal 1 isian dulu ya!", severity: "warning" });
+      return;
     }
     const newItem = {
       id: Date.now(), nama: generateSmartName(isian), type: "food", qty: 1, detail: isian,
@@ -149,17 +134,17 @@ export default function CustomerPage() {
       sausesPisah: Object.keys(sausesPisah).filter((key) => sausesPisah[key]),
       katsuobushi: pakeKatsuobushi, harga: hitungHargaPorsi()
     };
-    setCart([...cart, newItem]); clearTakoyakiForm(); playTone("success");
-    setSnackbar({ open: true, message: "Takoyaki masuk ke keranjang!", severity: "success" });
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    setCart([...cart, newItem]); 
+    if (modeRacik === "custom") setIsian({}); 
+    setSauses({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
+    setSausesPisah({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
+    setPakeKatsuobushi(false);
+    playTone("success");
+    setSnackbar({ open: true, message: "Takoyaki berhasil ditambahkan!", severity: "success" });
   };
 
   const addDrinkToCart = () => {
     if (qtyAir === 0) return;
-    if (editingCartId && cart.find(i => i.id === editingCartId)?.type === "drink") {
-      setCart(cart.map(item => item.id === editingCartId ? { ...item, qty: qtyAir, nama: `Air Mineral (${qtyAir}x)`, harga: 5000 * qtyAir } : item));
-      cancelEditMode(); setSnackbar({ open: true, message: "Minuman berhasil diperbarui!", severity: "success" }); playTone("success"); return;
-    }
     const existingWaterIndex = cart.findIndex((item) => item.type === "drink");
     if (existingWaterIndex !== -1) {
       const updatedCart = [...cart];
@@ -172,13 +157,11 @@ export default function CustomerPage() {
       setCart([...cart, newDrink]);
     }
     setQtyAir(0); playTone("success");
-    setSnackbar({ open: true, message: "Air Mineral masuk ke keranjang!", severity: "success" });
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    setSnackbar({ open: true, message: "Air Mineral ditambahkan!", severity: "success" });
   };
 
   const removeFromCart = (id) => { 
     setCart(cart.filter(item => item.id !== id)); 
-    if (editingCartId === id) { cancelEditMode(); }
     playTone("delete"); 
   };
 
@@ -201,27 +184,22 @@ export default function CustomerPage() {
       
       const infoId = docRef.id;
       localStorage.setItem("ian_takoyaki_active_order_id", infoId);
-      setCart([]); setNamaPelanggan(""); cancelEditMode();
+      setCart([]); 
       setActiveOrderId(infoId);
       playTone("success");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error("Firebase Error: ", error); setSnackbar({ open: true, message: "Waduh, koneksi drop. Coba klik lagi, Ian!", severity: "error" });
     }
   };
 
-  const renderSauceChips = (sauses, sausesPisah) => {
-    if (!sauses || sauses.length === 0) return null;
-    const isFullTeam = sauses.length === SAUS_LIST.length;
-    const allSeparated = sauses.every((s) => sausesPisah && sausesPisah.includes(s));
-    if (isFullTeam && allSeparated) return <Chip key="all-pisah" label="SEMUA SAUS DIPISAH" size="small" sx={{ bgcolor: COLORS.info, color: "white", fontWeight: "bold", fontSize: "0.75rem", height: "24px" }} />;
-    return sauses.map((saus) => {
-      const isPisah = sausesPisah && sausesPisah.includes(saus);
-      return <Chip key={saus} label={`${saus}${isPisah ? " (PISAH)" : ""}`} size="small" color={getSauceColor(saus)} variant={isPisah ? "outlined" : "filled"} sx={{ fontWeight: "bold", fontSize: "0.7rem", height: "24px" }} />;
-    });
+  const getOldStyleColor = (saus) => {
+    if (saus === "Katsuobushi") return "#e65100";
+    if (saus.includes("Sambel")) return "#c62828";
+    if (saus.includes("Tomat")) return "#ef6c00";
+    if (saus.includes("Mayonaise")) return "#0277bd";
+    return "#757575";
   };
-
-  const isEditingFood = editingCartId && cart.find(i => i.id === editingCartId)?.type === "food";
-  const isEditingDrink = editingCartId && cart.find(i => i.id === editingCartId)?.type === "drink";
 
   if (activeOrderId && activeOrderData) {
     const isWaitingConfirm = activeOrderData.noAntrian === "Online";
@@ -231,17 +209,19 @@ export default function CustomerPage() {
         <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4, display: "flex", alignItems: "center" }}>
           <CssBaseline />
           <Container maxWidth="sm">
-            <Paper elevation={4} sx={{ p: 4, borderRadius: 4, bgcolor: "white", textAlign: "center", borderTop: `6px solid ${COLORS.success}` }}>
-              <CheckCircleOutline sx={{ fontSize: 80, color: COLORS.success, mb: 2 }} />
-              <Typography variant="h4" fontWeight="900" color="success.main" gutterBottom>SIAP DINIKMATI! 🎉</Typography>
-              <Typography variant="h6" fontWeight="bold" color="text.primary" sx={{ mb: 2 }}>
-                Halo {activeOrderData.namaPemesan}, pesanan takoyaki hangatmu sudah siap disajikan!
-              </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-                Silakan ambil pesananmu langsung di meja kasir tenda Ian Takoyaki ya. Selamat menikmati makanan hangatmu! 🐙
-              </Typography>
-              <Button fullWidth variant="contained" onClick={resetSesiPelanggan} sx={{ height: "55px", bgcolor: COLORS.textDark, borderRadius: 3, fontWeight: "bold", fontSize: "1.1rem" }}>PESAN LAGI</Button>
-            </Paper>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
+              <Paper elevation={4} sx={{ p: 4, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: `8px solid ${COLORS.success}` }}>
+                <CheckCircleOutline sx={{ fontSize: 90, color: COLORS.success, mb: 2 }} />
+                <Typography variant="h4" fontWeight="900" color="success.main" gutterBottom>SIAP DINIKMATI! 🎉</Typography>
+                <Typography variant="h6" fontWeight="bold" color="text.primary" sx={{ mb: 2 }}>
+                  Halo {activeOrderData.namaPemesan}, pesanan takoyaki hangatmu sudah siap disajikan!
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 4, lineHeight: 1.6 }}>
+                  Silakan ambil pesananmu langsung di meja kasir tenda ya. Selamat menikmati makanan hangatmu! 🐙
+                </Typography>
+                <Button fullWidth variant="contained" onClick={resetSesiPelanggan} sx={{ height: "60px", bgcolor: "black", color: "white", borderRadius: 3, fontWeight: "bold", fontSize: "1.1rem" }}>PESAN LAGI NANTI</Button>
+              </Paper>
+            </motion.div>
           </Container>
         </Box>
       );
@@ -252,17 +232,23 @@ export default function CustomerPage() {
         <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4, display: "flex", alignItems: "center" }}>
           <CssBaseline />
           <Container maxWidth="sm">
-            <Paper elevation={4} sx={{ p: 4, borderRadius: 4, bgcolor: "white", textAlign: "center", borderTop: `6px solid ${COLORS.primary}` }}>
-              <CancelPresentation sx={{ fontSize: 80, color: "error.main", mb: 2 }} />
-              <Typography variant="h4" fontWeight="900" color="error.main" gutterBottom>PESANAN DIBATALKAN</Typography>
-              <Typography variant="h6" fontWeight="bold" color="text.primary" sx={{ mb: 2 }}>
-                Maaf, pesanan atas nama "{activeOrderData.namaPemesan}" telah dibatalkan.
-              </Typography>
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 4, bgcolor: "#ffebee", p: 2, borderRadius: 2, fontWeight: "bold" }}>
-                ⚠️ Pembatalan bisa terjadi karena melewati batas waktu pembayaran 15 menit atau ditolak oleh kasir. Silakan pesan ulang atau hubungi kasir.
-              </Typography>
-              <Button fullWidth variant="outlined" color="inherit" onClick={resetSesiPelanggan} sx={{ height: "55px", borderRadius: 3, fontWeight: "bold", fontSize: "1.1rem" }}>KEMBALI KE MENU KEDAI</Button>
-            </Paper>
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
+              <Paper elevation={2} sx={{ p: 4, borderRadius: 4, bgcolor: "white", textAlign: "center", borderTop: `6px solid #d32f2f` }}>
+                <Box sx={{ mb: 2 }}>
+                   <CancelPresentation sx={{ fontSize: 80, color: "#d32f2f", display: "inline-block" }} />
+                </Box>
+                <Typography variant="h4" fontWeight="900" sx={{ color: "#d32f2f", letterSpacing: 1, mb: 2 }}>PESANAN<br/>DIBATALKAN</Typography>
+                <Typography variant="h6" fontWeight="bold" color="text.primary" sx={{ mb: 3, lineHeight: 1.4 }}>
+                  Maaf, pesanan atas nama "{activeOrderData.namaPemesan}" telah dibatalkan.
+                </Typography>
+                <Box sx={{ bgcolor: "#fce4e4", p: 2, borderRadius: 2, mb: 4 }}>
+                  <Typography variant="body2" sx={{ color: "#c62828", fontWeight: "bold" }}>
+                    ⚠️ Pembatalan bisa terjadi karena melewati batas waktu pembayaran atau ditolak oleh kasir.
+                  </Typography>
+                </Box>
+                <Button fullWidth variant="outlined" color="inherit" onClick={resetSesiPelanggan} sx={{ height: "55px", borderRadius: 3, fontWeight: "bold", fontSize: "1rem", borderWidth: 2, borderColor: "#333", color: "#333" }}>KEMBALI KE MENU KEDAI</Button>
+              </Paper>
+            </motion.div>
           </Container>
         </Box>
       );
@@ -272,83 +258,84 @@ export default function CustomerPage() {
       <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4 }}>
         <CssBaseline />
         <Container maxWidth="sm">
-          <Paper elevation={3} sx={{ p: 4, borderRadius: 4, bgcolor: "white", textAlign: "center", borderTop: `6px solid ${COLORS.primary}` }}>
-            <Box sx={{ mb: 2 }}>
-              <HourglassEmpty sx={{ fontSize: 70, color: COLORS.secondary, animation: "spin 4s linear infinite" }} />
-            </Box>
-            <Typography variant="h5" fontWeight="900" color="primary" gutterBottom>PESANAN TERKIRIM!</Typography>
-            <Typography variant="body1" fontWeight="bold" color="text.secondary" sx={{ mb: 3 }}>Halo <b>{activeOrderData.namaPemesan}</b>, pesananmu sudah masuk ke dapur Ian Takoyaki.</Typography>
-            <Divider sx={{ my: 2 }} />
-            <Box sx={{ bgcolor: isWaitingConfirm ? "#e3f2fd" : (antreanDiDepan === 0 ? "#e8f5e9" : "#fff8e1"), p: 3, borderRadius: 3, mb: 3, border: `2px dashed ${isWaitingConfirm ? COLORS.info : (antreanDiDepan === 0 ? COLORS.success : "orange")}` }}>
-              <Typography variant="body2" fontWeight="bold" color="text.secondary">SISA ANTREAN SAAT INI:</Typography>
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+            <Paper elevation={2} sx={{ p: 4, borderRadius: 4, bgcolor: "white", textAlign: "center", borderTop: `6px solid ${COLORS.primary}` }}>
               
-              {/* LOGIKA TAMPILAN BARU UNTUK GEOFENCING / TIMEOUT & QRIS */}
-              {isWaitingConfirm ? (
-                <>
-                  <Typography variant="h5" fontWeight="900" color={COLORS.info} sx={{ my: 1.5 }}>MENUNGGU PEMBAYARAN...</Typography>
-                  <Chip label="Kasir menunggu konfirmasi bayar" color="info" sx={{ fontWeight: "bold" }} />
-                  
-                  <Box sx={{ mt: 3, p: 2, bgcolor: "white", borderRadius: 3, border: `2px dashed ${COLORS.info}` }}>
-                    <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>LAKUKAN PEMBAYARAN:</Typography>
-                    <Box display="flex" justifyContent="center" my={1}>
-                      {/* Gambar QRIS diletakkan di sini */}
-                        <img 
-                          src={qrisImage} 
-                          alt="QRIS IAN Takoyaki" 
-                          style={{ 
-                            width: "175px", // Bisa kamu atur ukurannya agar pas
-                            height: "auto", 
-                            borderRadius: "8px", 
-                            boxShadow: "0px 4px 10px rgba(0,0,0,0.1)" 
-                          }} 
-                        />
+              <Box sx={{ mb: 2, mt: 1 }}>
+                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 3, ease: "linear" }} style={{ display: "inline-block" }}>
+                  <HourglassEmpty sx={{ fontSize: 70, color: COLORS.secondary }} />
+                </motion.div>
+              </Box>
+              
+              <Typography variant="h5" fontWeight="900" color="primary" sx={{ letterSpacing: 1 }}>PESANAN<br/>TERKIRIM!</Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mt: 2, mb: 3 }}>Halo <b>{activeOrderData.namaPemesan}</b>, rincian pesananmu sudah masuk ke sistem.</Typography>
+              
+              <Divider sx={{ my: 3, borderStyle: "dashed" }} />
+              
+              <Box sx={{ bgcolor: isWaitingConfirm ? "#f0f8ff" : (antreanDiDepan === 0 ? "#e8f5e9" : "#fffde7"), p: 3, borderRadius: 3, mb: 3, border: `2px solid ${isWaitingConfirm ? COLORS.info : (antreanDiDepan === 0 ? COLORS.success : "#ffd54f")}` }}>
+                <Typography variant="body2" fontWeight="bold" color="text.secondary" sx={{ letterSpacing: 1, mb: 2 }}>SISA ANTREAN SAAT INI:</Typography>
+                
+                {isWaitingConfirm ? (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <Typography fontWeight="900" color={COLORS.info} sx={{ my: 1.5, fontSize: { xs: "1.8rem", sm: "2.2rem" } }}>MENUNGGU PEMBAYARAN</Typography>
+                    <Chip label="Kasir menunggu konfirmasi bayar" color="info" sx={{ fontWeight: "bold", borderRadius: 2 }} />
+                    
+                    <Box sx={{ mt: 3, p: 2.5, bgcolor: "white", borderRadius: 3, border: "1px solid #ddd" }}>
+                       <Typography variant="subtitle2" fontWeight="bold" color="text.secondary" gutterBottom>LAKUKAN PEMBAYARAN VIA QRIS:</Typography>
+                       <Box display="flex" justifyContent="center" my={2}>
+                          <img src={qrisImage} alt="QRIS IAN Takoyaki" style={{ width: "175px", height: "auto", borderRadius: "8px", boxShadow: "0px 4px 10px rgba(0,0,0,0.1)" }} />
+                       </Box>
+                       <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.5, color: COLORS.textDark }}>Scan QRIS atau Bayar Tunai ke Kasir</Typography>
+                       <Typography variant="caption" color="text.secondary" display="block">Tunjukkan bukti transfer ke kasir agar pesanan segera dimasak.</Typography>
                     </Box>
-                    <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Scan QRIS / Bayar ke Kasir</Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">Tunjukkan bukti bayar agar pesananmu segera dimasak.</Typography>
-                  </Box>
 
-                  <Alert severity="warning" icon={<HourglassEmpty />} sx={{ mt: 2, textAlign: "left", borderRadius: 2 }}>
-                     <Typography variant="caption" fontWeight="bold">
-                        Batas konfirmasi: 15 Menit. Pesanan otomatis batal jika dibiarkan.
-                     </Typography>
-                  </Alert>
-                </>
-              ) : antreanDiDepan === 0 ? (
-                <>
-                  <Typography variant="h4" fontWeight="900" color={COLORS.success} sx={{ my: 1.5 }}>GILIRANMU! 🍳</Typography>
-                  <Chip label="Pesanan sedang dimasak kasir" color="success" sx={{ fontWeight: "bold" }} />
-                </>
-              ) : (
-                <>
-                  <Typography variant="h2" fontWeight="900" color={COLORS.primary} sx={{ my: 0.5 }}>{antreanDiDepan}</Typography>
-                  <Typography variant="subtitle1" fontWeight="bold" color="text.secondary">Pesanan lagi di depanmu</Typography>
-                </>
-              )}
-            </Box>
-            
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              {isWaitingConfirm ? "Pesanan belum masuk daftar masak. Silakan selesaikan pembayaran dulu ya kak!" : "Boleh jalan-jalan santai dulu, nanti tinggal ambil di tenda ya!"}
-            </Typography>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle2" align="left" fontWeight="bold" color="text.primary" gutterBottom>Rincian Pesanan Kamu:</Typography>
-            <List dense>
-              {activeOrderData.items?.map((item, idx) => (
-                <Box key={idx} sx={{ p: 1.5, border: "1px solid #eee", borderRadius: 2, mb: 1, bgcolor: "#fafafa", textAlign: "left" }}>
-                  <Typography fontWeight="bold">• {item.qty}x {item.nama}</Typography>
-                  {item.type === "food" && (
-                    <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
-                      {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ height: "20px", fontSize: "0.65rem", bgcolor: COLORS.warning, color: "white" }} />}
-                      {item.sauses?.map(s => <Chip key={s} label={`${s}${item.sausesPisah?.includes(s) ? " (PISAH)" : ""}`} size="small" color={getSauceColor(s)} sx={{ height: "20px", fontSize: "0.65rem" }} />)}
+                    <Alert severity="warning" icon={<HourglassEmpty />} sx={{ mt: 3, textAlign: "left", borderRadius: 2, alignItems: "center" }}>
+                       <Typography variant="caption" fontWeight="bold">
+                          Batas konfirmasi: 15 Menit. Pesanan otomatis dibatalkan sistem jika dibiarkan.
+                       </Typography>
+                    </Alert>
+                  </motion.div>
+                ) : antreanDiDepan === 0 ? (
+                  <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ type: "spring" }}>
+                    <Typography fontWeight="900" color={COLORS.success} sx={{ my: 1.5, fontSize: { xs: "2rem", sm: "2.8rem" }, wordBreak: "break-word", lineHeight: 1 }}>GILIRANMU!</Typography>
+                    <Chip label="Pesanan sedang dimasak kasir" color="success" sx={{ fontWeight: "bold", fontSize: "0.95rem", py: 1.5, px: 1, height: "auto", borderRadius: 2, '& .MuiChip-label': { whiteSpace: 'normal', display: 'block', textAlign: 'center' } }} />
+                  </motion.div>
+                ) : (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <Typography variant="h1" fontWeight="900" color={COLORS.primary} sx={{ my: 1 }}>{antreanDiDepan}</Typography>
+                    <Typography variant="subtitle1" fontWeight="bold" color="text.secondary">Pesanan lagi di depanmu</Typography>
+                  </motion.div>
+                )}
+              </Box>
+              
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3, px: 2 }}>
+                {isWaitingConfirm ? "Pesanan belum masuk antrean masak. Silakan selesaikan pembayaran dulu ya!" : "Boleh jalan-jalan santai di area aloon-aloon dulu, nanti tinggal ambil di tenda ya!"}
+              </Typography>
+
+              <Divider sx={{ my: 3, borderStyle: "dashed" }} />
+              <Box textAlign="left" bgcolor="#fafafa" p={2.5} borderRadius={3} border="1px solid #eee">
+                <Typography variant="subtitle1" fontWeight="bold" color="text.primary" gutterBottom>🧾 Rincian Pesanan:</Typography>
+                <List dense disablePadding>
+                  {activeOrderData.items?.map((item, idx) => (
+                    <Box key={idx} sx={{ py: 1.5, borderBottom: idx !== activeOrderData.items.length - 1 ? "1px dashed #ddd" : "none" }}>
+                      <Typography fontWeight="800" sx={{ fontSize: "1.05rem", color: COLORS.textDark }}>{item.qty}x {item.nama}</Typography>
+                      {item.type === "food" && (
+                        <Box display="flex" flexWrap="wrap" gap={0.75} mt={1}>
+                          {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ height: "20px", fontSize: "0.65rem", bgcolor: getOldStyleColor("Katsuobushi"), color: "white", fontWeight: "bold" }} />}
+                          {item.sauses?.map(s => <Chip key={s} label={`${s}${item.sausesPisah?.includes(s) ? " (PISAH)" : ""}`} size="small" sx={{ height: "20px", fontSize: "0.65rem", bgcolor: getOldStyleColor(s), color: "white", fontWeight: "bold" }} />)}
+                        </Box>
+                      )}
                     </Box>
-                  )}
+                  ))}
+                </List>
+                <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 2, pt: 2, borderTop: "2px solid #ddd", gap: 1.5 }}>
+                  <Typography fontWeight="bold" fontSize="1.1rem">Total Tagihan:</Typography>
+                  <Typography variant="h5" fontWeight="900" sx={{ color: "#d32f2f", whiteSpace: "nowrap" }}>Rp {activeOrderData.totalTagihan?.toLocaleString()}</Typography>
                 </Box>
-              ))}
-            </List>
-            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 2, p: 1.5, bgcolor: "#f5f5f5", borderRadius: 2 }}>
-              <Typography fontWeight="bold">Total Tagihan:</Typography>
-              <Typography variant="h6" fontWeight="bold" color="primary">Rp {activeOrderData.totalTagihan?.toLocaleString()}</Typography>
-            </Box>
-          </Paper>
+              </Box>
+
+            </Paper>
+          </motion.div>
         </Container>
       </Box>
     );
@@ -359,161 +346,285 @@ export default function CustomerPage() {
       <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 8, display: "flex", alignItems: "center" }}>
         <CssBaseline />
         <Container maxWidth="sm">
-          <Paper elevation={3} sx={{ p: 5, borderRadius: 4, bgcolor: "white", textAlign: "center", borderTop: `6px solid ${COLORS.primary}` }}>
-            <NoFood sx={{ fontSize: 90, color: COLORS.primary, mb: 2 }} />
-            <Typography variant="h4" fontWeight="900" color="primary" gutterBottom>KEDAI SEDANG TUTUP</Typography>
-            <Typography variant="h6" fontWeight="bold" color="text.secondary" sx={{ mb: 2 }}>🐙 Selamat Datang di Ian Takoyaki 🐙</Typography>
-            <Divider sx={{ my: 3 }} />
-            <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.6, mb: 3 }}>
-              Maaf ya kak, saat ini kami sedang tidak menerima pesanan online karena kedai sedang tutup atau adonan sudah habis terjual.
-            </Typography>
-            <Box sx={{ bgcolor: "#fff3e0", p: 2, borderRadius: 2, border: "1px dashed orange" }}>
-              <Typography variant="body2" fontWeight="bold" color="warning.main">
-                Silakan datang kembali di jadwal operasional tenda lapak kami atau pantau media sosial kami ya kak. Sampai jumpa!
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+            <Paper elevation={3} sx={{ p: 5, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: `8px solid ${COLORS.primary}` }}>
+              <NoFood sx={{ fontSize: 90, color: COLORS.primary, mb: 2 }} />
+              <Typography variant="h4" fontWeight="900" color="primary" gutterBottom>KEDAI TUTUP</Typography>
+              <Typography variant="h6" fontWeight="bold" color="text.secondary" sx={{ mb: 2 }}>🐙 IAN Takoyaki 🐙</Typography>
+              <Divider sx={{ my: 3, borderStyle: "dashed" }} />
+              <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.6, mb: 4, fontSize: "1.1rem" }}>
+                Maaf ya kak, saat ini kami sedang beristirahat atau adonan sudah habis terjual hari ini.
               </Typography>
-            </Box>
-          </Paper>
+            </Paper>
+          </motion.div>
         </Container>
       </Box>
     );
   }
 
+  const totalCartPrice = cart.reduce((a, b) => a + b.harga, 0);
+
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, py: 4 }}>
+    <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, pt: 4, pb: cart.length > 0 ? 12 : 6 }}>
       <CssBaseline />
-      <Snackbar open={snackbar.open} autoHideDuration={2000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
-        <Alert severity={snackbar.severity} variant="filled" sx={{ width: "100%", fontWeight: "bold" }}>{snackbar.message}</Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
+        <Alert severity={snackbar.severity} variant="filled" sx={{ width: "100%", fontWeight: "bold", borderRadius: 3 }}>{snackbar.message}</Alert>
       </Snackbar>
 
       <Container maxWidth="sm">
-        <Box textAlign="center" mb={4}>
-          <Storefront sx={{ fontSize: 60, color: COLORS.primary, mb: 1 }} />
-          <Typography variant="h4" fontWeight="900" color="primary">IAN TAKOYAKI</Typography>
-          <Typography variant="body1" fontWeight="bold" color="text.secondary">Pesan langsung dari HP Kamu!</Typography>
+        <Box textAlign="center" mb={4} component={motion.div} initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+          <Storefront sx={{ fontSize: 50, color: COLORS.primary, mb: 1 }} />
+          <Typography variant="h4" fontWeight="900" color="primary" sx={{ letterSpacing: -0.5 }}>IAN TAKOYAKI</Typography>
+          <Typography variant="body2" fontWeight="bold" color="text.secondary" sx={{ letterSpacing: 1, textTransform: "uppercase" }}>Aloon-Aloon Masjid Agung Kauman</Typography>
         </Box>
 
-        <Paper elevation={0} sx={{ p: 2.5, mb: 3, borderRadius: 3, borderTop: `4px solid ${COLORS.success}`, bgcolor: "white" }}>
-          <Typography variant="h6" fontWeight="bold" color={COLORS.success} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Person sx={{ mr: 1 }} /> Data Pelanggan</Typography>
-          <TextField fullWidth label="Nama Kamu" variant="outlined" value={namaPelanggan} onChange={(e) => setNamaPelanggan(e.target.value)} placeholder="Misal: Budi" InputLabelProps={{ style: { fontSize: "1.2rem" } }} InputProps={{ style: { fontSize: "1.3rem" } }} />
-        </Paper>
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}>
+          <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 5, bgcolor: "white", borderTop: `4px solid ${COLORS.success}` }}>
+            <Typography variant="subtitle1" fontWeight="800" color={COLORS.success} sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+              <Person sx={{ mr: 1 }} /> Siapa Namamu Kak?
+            </Typography>
+            <TextField 
+              fullWidth 
+              variant="outlined" 
+              value={namaPelanggan} 
+              onChange={(e) => setNamaPelanggan(e.target.value)} 
+              placeholder="Misal: Kak Budi" 
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: "#fafafa" } }}
+            />
+          </Paper>
+        </motion.div>
 
-        {editingCartId && <Alert severity="info" sx={{ mb: 2, fontWeight: "bold" }} onClose={cancelEditMode}>Sedang mengubah rincian dari Keranjang... (Klik X untuk Batal)</Alert>}
-
-        <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 4, bgcolor: "white", borderTop: `4px solid ${COLORS.primary}`, opacity: isEditingDrink ? 0.5 : 1, pointerEvents: isEditingDrink ? "none" : "auto" }}>
-          <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Restaurant sx={{ mr: 1 }} /> Menu Takoyaki</Typography>
-          
-          <motion.div whileTap={{ scale: 0.95 }} style={{ marginBottom: "16px", width: "100%" }}>
-            <Button fullWidth variant="contained" onClick={() => { setIsian({ sosis: 1, cumi: 1, kepiting: 1, keju: 1, kornet: 1, gurita: 0 }); playTone("click"); }} startIcon={<Restaurant />} sx={{ height: "50px", bgcolor: COLORS.secondary, fontSize: "1rem", fontWeight: "bold" }}>PAKET CAMPUR (15K)</Button>
-          </motion.div>
-          
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}><Box display="flex" alignItems="center" gap={1}><Typography variant="subtitle1" fontWeight="bold">Atau Racik Isian:</Typography><Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "default"} size="small" sx={{ fontWeight: "bold" }} /></Box><Button size="small" color="error" startIcon={<RestartAlt />} onClick={clearTakoyakiForm} sx={{ textTransform: "none", fontWeight: "bold" }}>Kosongkan</Button></Box>
-          
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 3 }}>
-            {VARIAN_ISIAN.map((item) => (
-              <motion.div key={item.id} whileTap={{ scale: 0.95 }} style={{ width: "100%", height: "100%" }}>
-                <Card elevation={0} onClick={(e) => { e.stopPropagation(); toggleIsian(item.id); }} sx={{ bgcolor: isian[item.id] > 0 ? COLORS.cardSelected : "#f5f5f5", border: isian[item.id] > 0 ? `3px solid ${COLORS.primary}` : "1px solid #eee", boxShadow: isian[item.id] > 0 ? "0 4px 12px rgba(211, 47, 47, 0.3)" : "none", borderRadius: 2, cursor: "pointer", height: "60px", width: "100%", display: "flex", justifyContent: "center", alignItems: "center", transition: "0.1s", userSelect: "none", boxSizing: "border-box", px: 1 }}>
-                  <Typography variant="body1" fontWeight="900" align="center" sx={{ color: isian[item.id] > 0 ? COLORS.primary : "#757575", letterSpacing: 0.5, fontSize: "0.85rem", lineHeight: 1.1 }}>{item.label}</Typography>
-                </Card>
-              </motion.div>
-            ))}
-          </Box>
-
-          <Box mb={2}>
-            <FormControlLabel control={<Checkbox checked={pakeKatsuobushi} onChange={(e) => { setPakeKatsuobushi(e.target.checked); playTone("click"); }} color="warning" sx={{ transform: "scale(1.2)", mr: 1 }} />} label={<Typography sx={{ fontSize: "0.9rem", fontWeight: "bold" }}>Topping Katsuobushi</Typography>} sx={{ p: 1, border: "1px solid #ddd", borderRadius: 2, width: "100%", mb: 2, mx: 0 }} />
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
+          {/* PERBAIKAN 1: Paper dibungkus sebagai motion.div dengan layout agar bisa melentur mulus */}
+          <Paper component={motion.div} layout transition={{ type: "spring", stiffness: 300, damping: 30 }} elevation={0} sx={{ p: 3, mb: 3, borderRadius: 5, bgcolor: "white", borderTop: `4px solid ${COLORS.primary}` }}>
             
-            <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1.5}>
-              <Box>
-                <Typography variant="body2" color="text.secondary" fontWeight="bold">Pilih Saus:</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5 }}>Bisa pilih lebih dari satu</Typography>
-              </Box>
-              <Button size="small" variant="text" color="primary" onClick={toggleSemuaSaus} sx={{ fontWeight: "bold", fontSize: "0.8rem", textTransform: "none", p: 0 }}>
-                {Object.values(sauses).every((val) => val === true) ? "Hapus Semua" : "Pilih Semua"}
-              </Button>
-            </Box>
-
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
-              {SAUS_LIST.map((saus) => (
-                <Box key={saus} sx={{ border: sauses[saus] ? `2px solid ${COLORS.primary}` : "1px solid #ddd", borderRadius: 2, p: 0.5, bgcolor: sauses[saus] ? "#ffebee" : "transparent", minHeight: "85px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease", width: "100%", boxSizing: "border-box" }}>
-                  <Box display="flex" alignItems="center" justifyContent="center" width="100%">
-                    <Checkbox size="small" checked={sauses[saus]} onChange={() => { setSauses({ ...sauses, [saus]: !sauses[saus] }); playTone("click"); }} sx={{ p: 0, color: COLORS.secondary, "&.Mui-checked": { color: COLORS.primary } }} />
-                    <Typography sx={{ fontSize: "0.8rem", fontWeight: "900", lineHeight: 1.1, textAlign: "center" }}>{saus}</Typography>
-                  </Box>
-                  <AnimatePresence>
-                    {sauses[saus] && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
-                        <FormControlLabel control={<Switch size="small" checked={sausesPisah[saus]} onChange={() => { setSausesPisah({ ...sausesPisah, [saus]: !sausesPisah[saus] }); playTone("click"); }} color="error" />} label={<Typography variant="caption" color="error" fontWeight="bold">Pisah</Typography>} sx={{ m: 0, ml: 1 }} />
-                      </motion.div>
+            <motion.div layout>
+              <Typography variant="h6" fontWeight="900" color={COLORS.textDark} sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <Restaurant sx={{ mr: 1, color: COLORS.primary }} /> Menu Takoyaki
+              </Typography>
+            </motion.div>
+            
+            <Box component={motion.div} layout sx={{ display: 'flex', bgcolor: '#f5f5f5', p: 0.5, borderRadius: 3, mb: 3, border: "1px solid #ddd", position: "relative" }}>
+              {["campur", "custom"].map((mode) => {
+                const isSelected = modeRacik === mode;
+                return (
+                  <Box
+                    key={mode}
+                    onClick={() => { setModeRacik(mode); playTone('click'); }}
+                    sx={{ flex: 1, position: 'relative', py: { xs: 1.2, sm: 1.5 }, px: 0.5, cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}
+                  >
+                    {isSelected && (
+                      <motion.div layoutId="activeTabMode" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: mode === 'campur' ? COLORS.secondary : COLORS.primary, borderRadius: '8px', zIndex: 0 }} transition={{ type: "spring", stiffness: 400, damping: 30 }} />
                     )}
-                  </AnimatePresence>
-                </Box>
-              ))}
+                    <Typography sx={{ position: "relative", zIndex: 1, fontWeight: '900', fontSize: { xs: '0.75rem', sm: '0.95rem' }, lineHeight: 1.2, color: isSelected ? 'white' : 'text.secondary' }}>
+                      {mode === 'campur' ? 'PAKET CAMPUR' : 'RACIK SENDIRI'}
+                    </Typography>
+                  </Box>
+                );
+              })}
             </Box>
-          </Box>
-          <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
-            <Button fullWidth variant="contained" onClick={addTakoyakiToCart} disabled={totalPilihan === 0 && !isEditingFood} sx={{ bgcolor: isEditingFood ? COLORS.info : COLORS.primary, borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingFood ? "PERBARUI TAKOYAKI INI" : `+ TAMBAH TAKOYAKI ${totalPilihan > 0 ? `(Rp ${hitungHargaPorsi().toLocaleString()})` : ""}`}</Button>
-          </motion.div>
-        </Paper>
 
-        <Paper elevation={0} sx={{ p: 2, mb: 4, borderRadius: 4, bgcolor: "#e3f2fd", borderTop: `4px solid ${COLORS.info}`, opacity: isEditingFood ? 0.5 : 1, pointerEvents: isEditingFood ? "none" : "auto" }}>
-          <Typography variant="h6" fontWeight="bold" color={COLORS.info} sx={{ display: "flex", alignItems: "center", mb: 2 }}><LocalDrink sx={{ mr: 1 }} /> Menu Minuman</Typography>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Box>
-              <Typography variant="subtitle1" fontWeight="bold">Air Mineral (Dingin / Biasa)</Typography>
-              <Typography variant="body2" color="text.secondary" fontWeight="bold">Rp 5.000 / botol</Typography>
-            </Box>
-            <Box display="flex" alignItems="center" sx={{ bgcolor: "white", borderRadius: 2, border: `1px solid ${COLORS.info}` }}>
-              <IconButton onClick={() => { setQtyAir(Math.max(0, qtyAir - 1)); playTone("click"); }} disabled={qtyAir === 0}><Remove color="info" /></IconButton>
-              <Typography fontWeight="bold" fontSize="1.2rem" sx={{ mx: 2, width: "20px", textAlign: "center" }}>{qtyAir}</Typography>
-              <IconButton onClick={() => { if (qtyAir < 10) { setQtyAir(qtyAir + 1); playTone("click"); } }} disabled={qtyAir >= 10}><Add color="info" /></IconButton>
-            </Box>
-          </Box>
-          <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
-            <Button fullWidth variant="contained" color="info" onClick={addDrinkToCart} disabled={qtyAir === 0 && !isEditingDrink} sx={{ borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingDrink ? "PERBARUI MINUMAN INI" : `+ TAMBAH MINUMAN ${qtyAir > 0 ? `(Rp ${(qtyAir * 5000).toLocaleString()})` : ""}`}</Button>
-          </motion.div>
-        </Paper>
-
-        {cart.length > 0 && (
-          <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: "#fffde7", border: "2px dashed orange", mb: 4 }}>
-            <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} gutterBottom>🛒 Keranjang Pesanan</Typography>
-            <List dense sx={{ p: 0, mb: 2 }}>
-              <AnimatePresence>
-                {cart.map((item) => (
-                  <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} style={{ marginBottom: "12px" }}>
-                    <Box sx={{ border: `1px solid ${editingCartId === item.id ? COLORS.info : '#ddd'}`, borderRadius: 2, p: 1.5, bgcolor: editingCartId === item.id ? "#e3f2fd" : "white", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                        <Typography fontWeight="bold" fontSize="1.1rem" sx={{ pr: 2, lineHeight: 1.2 }}>{item.nama}</Typography>
-                        <Typography variant="subtitle1" fontWeight="bold" color={COLORS.primary} sx={{ whiteSpace: "nowrap" }}>Rp {item.harga.toLocaleString()}</Typography>
+            {/* PERBAIKAN 2: Container khusus popLayout agar tinggi Parent langsung menyesuaikan tinggi Child baru */}
+            <Box component={motion.div} layout sx={{ position: "relative", width: "100%" }}>
+              <AnimatePresence mode="popLayout">
+                {modeRacik === "campur" ? (
+                  <motion.div key="tab-campur" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25, ease: "easeInOut" }} style={{ width: "100%" }}>
+                    <Box sx={{ textAlign: 'center', p: 3, bgcolor: '#fffde7', borderRadius: 4, border: `2px dashed ${COLORS.secondary}` }}>
+                      <Stars sx={{ fontSize: 40, color: COLORS.secondary, mb: 1 }} />
+                      <Typography variant="h6" fontWeight="900" color={COLORS.secondary}>Paket Anti Pusing!</Typography>
+                      <Typography variant="body2" color="text.secondary" fontWeight="bold" mt={1}>
+                        Isian sudah dimix otomatis:<br/><b>Sosis, Cumi, Kepiting, Keju, & Kornet.</b>
+                      </Typography>
+                    </Box>
+                  </motion.div>
+                ) : (
+                  <motion.div key="tab-custom" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.25, ease: "easeInOut" }} style={{ width: "100%" }}>
+                    <Box>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Typography variant="subtitle2" fontWeight="900" color={COLORS.textDark}>Pilih Maksimal 5 Isian:</Typography>
+                        <Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "primary"} size="small" sx={{ fontWeight: "bold", borderRadius: 2 }} />
                       </Box>
-                      
-                      {item.type === "food" && (
-                        <Box sx={{ mt: 0.5 }}>
-                          <Box display="flex" flexWrap="wrap" gap={0.75}>
-                            {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ bgcolor: COLORS.warning, color: "white", fontWeight: "bold", fontSize: "0.7rem", height: "24px" }} />}
-                            {(!item.sauses || item.sauses.length === 0) && <Chip label="Tanpa Saus" size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: "24px", color: "text.secondary", borderColor: "#ddd" }} />}
-                            {renderSauceChips(item.sauses, item.sausesPisah)}
-                          </Box>
-                        </Box>
-                      )}
-
-                      <Divider sx={{ my: 1.5, borderStyle: "dashed" }} />
-                      
-                      <Box display="flex" justifyContent="flex-end" gap={1.5} alignItems="center">
-                        <Button size="small" variant="outlined" color="primary" onClick={() => loadCartItemToForm(item)} sx={{ textTransform: "none", fontWeight: "bold", borderRadius: 1.5, px: 2 }}>Ubah</Button>
-                        <IconButton size="small" color="error" onClick={() => removeFromCart(item.id)} sx={{ bgcolor: "#ffebee", borderRadius: 2 }}><Delete fontSize="small" /></IconButton>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 1.5 }}>
+                        {VARIAN_ISIAN.map((item) => {
+                          const isSelected = isian[item.id] > 0;
+                          const isPremium = item.id === "gurita";
+                          return (
+                            <motion.div key={item.id} whileTap={{ scale: 0.95 }}>
+                              <Card 
+                                elevation={0} 
+                                onClick={(e) => { e.stopPropagation(); toggleIsian(item.id); }} 
+                                sx={{ bgcolor: isSelected ? (isPremium ? "#fffde7" : "#e8f5e9") : "#f8f9fa", border: isSelected ? `2px solid ${isPremium ? "#ffb300" : COLORS.success}` : "1px solid #ddd", borderRadius: 4, cursor: "pointer", p: 1.5, display: "flex", flexDirection: "column", alignItems: "center", transition: "all 0.2s" }}
+                              >
+                                <Typography variant="body1" fontWeight="900" sx={{ color: isSelected ? COLORS.textDark : "#757575", mb: 0.5 }}>{item.label}</Typography>
+                                {isPremium ? <Chip label="Premium" size="small" sx={{ height: "18px", fontSize: "0.6rem", bgcolor: "#ffb300", color: "white", fontWeight: "bold" }} /> : <Typography variant="caption" color="text.secondary" fontWeight="bold">Biasa</Typography>}
+                              </Card>
+                            </motion.div>
+                          );
+                        })}
                       </Box>
                     </Box>
                   </motion.div>
+                )}
+              </AnimatePresence>
+            </Box>
+
+            {/* PERBAIKAN 3: Semua elemen di bawahnya dibungkus motion.div layout agar meluncur elegan */}
+            <motion.div layout transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+              <AnimatePresence>
+                {isGuritaOnly() && (
+                  <motion.div layout initial={{ height: 0, opacity: 0, marginTop: 0 }} animate={{ height: "auto", opacity: 1, marginTop: 24 }} exit={{ height: 0, opacity: 0, marginTop: 0 }} style={{ overflow: "hidden" }}>
+                    <Alert icon={<Stars fontSize="inherit" />} severity="warning" sx={{ borderRadius: 3, bgcolor: "#fff8e1", border: "1px solid #ffe082", alignItems: "center" }}>
+                      <Typography variant="caption" fontWeight="bold" color="warning.dark">Mantap! Pilihan <b>Khusus Gurita</b> menjadikan harga porsi ini <b>Rp 20.000</b>. (Jika dicampur isian lain, harga kembali normal 15rb).</Typography>
+                    </Alert>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <motion.div layout>
+                <Divider sx={{ my: 3, borderStyle: "dashed" }} />
+              </motion.div>
+
+              <motion.div layout>
+                <Typography variant="subtitle2" fontWeight="900" color={COLORS.textDark} mb={2}>Tambahan & Saus (Gratis):</Typography>
+              </motion.div>
+              
+              <Paper component={motion.div} layout elevation={0} sx={{ p: 2, border: "1px solid #ddd", borderRadius: 4, mb: 3, bgcolor: "#fafafa" }}>
+                <FormControlLabel 
+                  control={<Checkbox checked={pakeKatsuobushi} onChange={(e) => { setPakeKatsuobushi(e.target.checked); playTone("click"); }} color="warning" sx={{ '& .MuiSvgIcon-root': { fontSize: 28 } }} />} 
+                  label={<Typography sx={{ fontSize: "0.95rem", fontWeight: "800", color: COLORS.textDark }}>Topping Katsuobushi (Ikan Serut)</Typography>} 
+                  sx={{ m: 0, width: "100%", mb: 1 }} 
+                />
+                <Box mt={2}>
+                  <Typography variant="body2" color="text.secondary" fontWeight="bold" mb={1.5}>Pilihan Saus (Boleh lebih dari satu):</Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column" }}>
+                    {SAUS_LIST.map((saus) => (
+                      <Box key={saus} sx={{ display: "flex", alignItems: "center", minHeight: "48px", borderBottom: "1px solid #eee" }}>
+                        <Box sx={{ flexGrow: 1 }}>
+                          <FormControlLabel control={<Checkbox checked={sauses[saus]} onChange={() => { setSauses({ ...sauses, [saus]: !sauses[saus] }); playTone("click"); }} sx={{ color: COLORS.secondary, "&.Mui-checked": { color: COLORS.primary } }} />} label={<Typography sx={{ fontSize: "0.9rem", fontWeight: "700" }}>{saus}</Typography>} sx={{ m: 0 }} />
+                        </Box>
+                        <Box sx={{ minWidth: "110px", textAlign: "right" }}>
+                          <AnimatePresence>
+                            {sauses[saus] && (
+                              <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                                <FormControlLabel control={<Switch size="small" checked={sausesPisah[saus]} onChange={() => { setSausesPisah({ ...sausesPisah, [saus]: !sausesPisah[saus] }); playTone("click"); }} color="error" />} label={<Typography variant="caption" color="error" fontWeight="bold">Pisah Saus</Typography>} sx={{ m: 0 }} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              </Paper>
+
+              <Box component={motion.div} layout sx={{ mt: 2, mb: 3, p: 2, bgcolor: COLORS.background, borderRadius: 3, border: `1px solid ${COLORS.primary}`, textAlign: "center" }}>
+                <Typography variant="caption" color="text.secondary" fontWeight="bold">Preview Nama Pesanan:</Typography>
+                <Typography variant="h6" fontWeight="900" color={COLORS.primary}>{totalPilihan === 0 ? "Pilih isian di atas..." : generateSmartName(isian)}</Typography>
+              </Box>
+
+              <Box component={motion.div} layout display="flex" justifyContent="space-between" alignItems="center" mb={2} gap={1.5}>
+                 <Typography variant="body2" color="text.secondary" fontWeight="bold">Harga Porsi Ini:</Typography>
+                 <Typography variant="h5" fontWeight="900" sx={{ color: "#d32f2f", whiteSpace: "nowrap" }}>Rp {hitungHargaPorsi().toLocaleString()}</Typography>
+              </Box>
+
+              <motion.div layout whileTap={{ scale: 0.97 }}>
+                <Button fullWidth variant="contained" onClick={addTakoyakiToCart} disabled={totalPilihan === 0} sx={{ height: "60px", borderRadius: 4, bgcolor: COLORS.primary, fontSize: "1.1rem", fontWeight: "900", boxShadow: "0 8px 20px rgba(211, 47, 47, 0.25)" }}>
+                  + MASUKKAN KE KERANJANG
+                </Button>
+              </motion.div>
+            </motion.div>
+          </Paper>
+        </motion.div>
+
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
+          <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 5, bgcolor: "white", borderTop: `4px solid ${COLORS.info}` }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} gap={1.5}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight="900" color={COLORS.info} sx={{ display: "flex", alignItems: "center" }}>
+                  <LocalDrink sx={{ mr: 1 }} /> Air Mineral
+                </Typography>
+                <Typography variant="body2" color="text.secondary" fontWeight="bold">Dingin / Biasa - Rp 5.000</Typography>
+              </Box>
+              <Box display="flex" alignItems="center" sx={{ bgcolor: "#f8f9fa", borderRadius: 3, border: `1px solid #ddd` }}>
+                <IconButton onClick={() => { setQtyAir(Math.max(0, qtyAir - 1)); playTone("click"); }} disabled={qtyAir === 0}><Remove color="info" /></IconButton>
+                <Typography fontWeight="900" fontSize="1.2rem" sx={{ mx: 1, width: "20px", textAlign: "center" }}>{qtyAir}</Typography>
+                <IconButton onClick={() => { if (qtyAir < 10) { setQtyAir(qtyAir + 1); playTone("click"); } }} disabled={qtyAir >= 10}><Add color="info" /></IconButton>
+              </Box>
+            </Box>
+            <motion.div whileTap={{ scale: 0.97 }}>
+              <Button fullWidth variant="contained" color="info" onClick={addDrinkToCart} disabled={qtyAir === 0} sx={{ height: "55px", borderRadius: 4, fontSize: "1rem", fontWeight: "900", boxShadow: "none" }}>
+                + TAMBAH MINUMAN {qtyAir > 0 ? `(Rp ${(qtyAir * 5000).toLocaleString()})` : ""}
+              </Button>
+            </motion.div>
+          </Paper>
+        </motion.div>
+        
+        {cart.length > 0 && (
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }}>
+            <Box sx={{ p: 2.5, bgcolor: "#fffde7", borderRadius: 4, border: `2px dashed #ffd54f`, mb: 2 }}>
+              <Typography variant="h6" fontWeight="900" color="text.primary" mb={2} display="flex" alignItems="center">
+                🛒 Keranjang Pesanan
+              </Typography>
+              <AnimatePresence>
+                {cart.map((item) => (
+                  <motion.div key={item.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} style={{ marginBottom: "12px" }}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 3, border: "1px solid #ddd", bgcolor: "white" }}>
+                      
+                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1} gap={1.5}>
+                        <Typography fontWeight="900" fontSize="1.05rem" color={COLORS.textDark} sx={{ lineHeight: 1.3 }}>{item.nama}</Typography>
+                        <Typography fontWeight="900" sx={{ color: "#d32f2f", whiteSpace: "nowrap" }}>Rp {item.harga.toLocaleString()}</Typography>
+                      </Box>
+                      
+                      {item.type === "food" && (
+                        <Box display="flex" flexWrap="wrap" gap={0.75} mb={1}>
+                          {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ height: "22px", fontSize: "0.7rem", bgcolor: getOldStyleColor("Katsuobushi"), color: "white", fontWeight: "bold" }} />}
+                          {item.sauses?.map(s => <Chip key={s} label={`${s}${item.sausesPisah?.includes(s) ? " (PISAH)" : ""}`} size="small" sx={{ height: "22px", fontSize: "0.7rem", bgcolor: getOldStyleColor(s), color: "white", fontWeight: "bold" }} />)}
+                        </Box>
+                      )}
+                      
+                      <Divider sx={{ my: 1.5, borderStyle: "dashed" }} />
+                      
+                      <Box display="flex" justifyContent="flex-end">
+                        <IconButton onClick={() => removeFromCart(item.id)} sx={{ bgcolor: "#ffebee", borderRadius: 2, p: 1, color: "#d32f2f" }}>
+                          <Delete />
+                        </IconButton>
+                      </Box>
+
+                    </Paper>
+                  </motion.div>
                 ))}
               </AnimatePresence>
-            </List>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}><Typography variant="subtitle1" fontWeight="bold">Total Pembayaran:</Typography><Typography variant="h5" fontWeight="bold" color={COLORS.primary}>Rp {cart.reduce((a, b) => a + b.harga, 0).toLocaleString()}</Typography></Box>
-            <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
-              <Button fullWidth variant="contained" onClick={kirimPesanan} startIcon={<Send />} disabled={!!editingCartId} sx={{ height: "60px", borderRadius: 3, bgcolor: COLORS.textDark, fontSize: "1.2rem", fontWeight: "bold", "&:hover": { bgcolor: "black" } }}>KIRIM KE KASIR SEKARANG</Button>
-            </motion.div>
-            <div ref={bottomRef} />
-          </Paper>
+              
+              <Box textAlign="center" mt={2} px={1}>
+                <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ lineHeight: 1.4, display: "block" }}>
+                   💡 Setelah menekan tombol pesan, kamu akan diarahkan ke halaman QRIS untuk pembayaran dan bisa melihat posisi antreanmu.
+                </Typography>
+              </Box>
+            </Box>
+          </motion.div>
         )}
       </Container>
+
+      <AnimatePresence>
+        {cart.length > 0 && (
+          <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 1000 }}>
+            <Box sx={{ bgcolor: "white", p: 2, borderTop: "1px solid #eee", boxShadow: "0px -4px 20px rgba(0,0,0,0.08)", pb: "env(safe-area-inset-bottom, 16px)" }}>
+              <Container maxWidth="sm" sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", p: 0, gap: 1 }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block">Total Bayar</Typography>
+                  <Typography variant="h5" fontWeight="900" sx={{ color: "#d32f2f", whiteSpace: "nowrap" }}>Rp {totalCartPrice.toLocaleString()}</Typography>
+                </Box>
+                <motion.div whileTap={{ scale: 0.95 }}>
+                  <Button variant="contained" onClick={kirimPesanan} endIcon={<Send />} sx={{ height: "55px", px: 4, borderRadius: 3, bgcolor: "black", color: "white", fontSize: "1.1rem", fontWeight: "900", '&:hover': { bgcolor: "#333" } }}>
+                    PESAN
+                  </Button>
+                </motion.div>
+              </Container>
+            </Box>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
     </Box>
   );
 }
