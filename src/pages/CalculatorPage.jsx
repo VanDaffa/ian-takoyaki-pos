@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { 
   Box, Typography, Card, Container, IconButton, 
-  CssBaseline, Button, Divider, Grid, Paper, Snackbar, Alert
+  CssBaseline, Button, Grid, Paper, Snackbar, Alert
 } from "@mui/material";
 import { 
   ArrowBack, Add, Remove, RestartAlt, Calculate, MonetizationOn, QrCode2 
 } from "@mui/icons-material";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { COLORS } from "../utils/constants";
 import { playTone } from "../utils/soundEngine";
@@ -71,7 +71,6 @@ export default function CalculatorPage() {
         <Alert severity="info" variant="filled" sx={{ fontWeight: "bold", borderRadius: 3 }}>{snackbar.message}</Alert>
       </Snackbar>
 
-      {/* Menggunakan maxWidth="lg" agar tata letak 3 kolom di landscape/tablet lebih longgar dan proporsional */}
       <Container maxWidth="lg">
         <motion.div variants={containerVariants} initial="hidden" animate="show">
           
@@ -109,18 +108,17 @@ export default function CalculatorPage() {
             </Paper>
           </motion.div>
 
-          {/* GRID MENU COUNTER */}
-          <Grid container spacing={3}>
+          {/* GRID MENU COUNTER (DIPERBAIKI DENGAN JUSTIFY-CONTENT CENTER) */}
+          <Grid container spacing={3} justifyContent="center" alignItems="stretch">
             
             {/* 1. Takoyaki 20k */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} sm={6} md={4}>
               <motion.div variants={itemVariants} style={{ height: "100%" }}>
                 <Card elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: "white", height: "100%", border: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                   <Typography variant="h6" fontWeight="900" color={COLORS.textDark} align="center" gutterBottom sx={{ borderBottom: "2px dashed #eee", pb: 1.5 }}>
                     🐙 Takoyaki 20k
                   </Typography>
 
-                  {/* Tunai (Diperbaiki dari my: 15 menjadi my: 1.5) */}
                   <Box sx={{ bgcolor: "#f9f9f9", p: 2, borderRadius: 3, my: 1.5 }}>
                     <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                       <MonetizationOn fontSize="small" color="success" />
@@ -133,7 +131,6 @@ export default function CalculatorPage() {
                     </Box>
                   </Box>
 
-                  {/* QRIS */}
                   <Box sx={{ bgcolor: "#f9f9f9", p: 2, borderRadius: 3 }}>
                     <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                       <QrCode2 fontSize="small" color="info" />
@@ -150,14 +147,13 @@ export default function CalculatorPage() {
             </Grid>
 
             {/* 2. Takoyaki 15k */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} sm={6} md={4}>
               <motion.div variants={itemVariants} style={{ height: "100%" }}>
                 <Card elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: "white", height: "100%", border: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                   <Typography variant="h6" fontWeight="900" color={COLORS.textDark} align="center" gutterBottom sx={{ borderBottom: "2px dashed #eee", pb: 1.5 }}>
                     🐙 Takoyaki 15k
                   </Typography>
 
-                  {/* Tunai */}
                   <Box sx={{ bgcolor: "#f9f9f9", p: 2, borderRadius: 3, my: 1.5 }}>
                     <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                       <MonetizationOn fontSize="small" color="success" />
@@ -170,7 +166,6 @@ export default function CalculatorPage() {
                     </Box>
                   </Box>
 
-                  {/* QRIS */}
                   <Box sx={{ bgcolor: "#f9f9f9", p: 2, borderRadius: 3 }}>
                     <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                       <QrCode2 fontSize="small" color="info" />
@@ -187,14 +182,13 @@ export default function CalculatorPage() {
             </Grid>
 
             {/* 3. Air Mineral */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} sm={6} md={4}>
               <motion.div variants={itemVariants} style={{ height: "100%" }}>
                 <Card elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: "white", height: "100%", border: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                   <Typography variant="h6" fontWeight="900" color={COLORS.textDark} align="center" gutterBottom sx={{ borderBottom: "2px dashed #eee", pb: 1.5 }}>
                     💧 Air Mineral
                   </Typography>
 
-                  {/* Tunai */}
                   <Box sx={{ bgcolor: "#f9f9f9", p: 2, borderRadius: 3, my: 1.5 }}>
                     <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                       <MonetizationOn fontSize="small" color="success" />
@@ -207,7 +201,6 @@ export default function CalculatorPage() {
                     </Box>
                   </Box>
 
-                  {/* QRIS */}
                   <Box sx={{ bgcolor: "#f9f9f9", p: 2, borderRadius: 3 }}>
                     <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={1}>
                       <QrCode2 fontSize="small" color="info" />
