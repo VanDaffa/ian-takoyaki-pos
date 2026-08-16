@@ -3,22 +3,26 @@ import {
   Box, Typography, Card, Button, IconButton, Chip, Stack, Divider, Paper,
   Checkbox, FormControlLabel, Collapse, CardActionArea, Snackbar, Alert, TextField,
   List, Dialog, DialogTitle, DialogActions, DialogContent, DialogContentText, Switch, useMediaQuery, useTheme,
-  Menu, MenuItem, ListItemIcon, ListItemText, CssBaseline
+  CssBaseline
 } from "@mui/material";
 import {
   Add, Remove, Restaurant, CheckCircle, AttachMoney, Kitchen,
-  Person, Delete, RestartAlt, ShoppingBasket, ContentCopy, Edit, MoneyOff, SaveAs, LocalDrink, Logout, Store, MoreVert
+  Person, Delete, RestartAlt, ShoppingBasket, ContentCopy, Edit, MoneyOff, SaveAs, LocalDrink, ArrowBack
 } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { COLORS, VARIAN_ISIAN, SAUS_LIST } from "../utils/constants";
 import { formatName, generateSmartName, getSauceColor } from "../utils/helpers";
 import { playTone } from "../utils/soundEngine";
 
-import { db, auth } from "../utils/firebase";
-import { signOut } from "firebase/auth";
-import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { db } from "../utils/firebase";
+import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+
+// IMPORT GAMBAR QRIS
+import qrisImage from "../assets/qris-ian.jpg";
 
 export default function CashierPage() {
+  const navigate = useNavigate();
   const [isian, setIsian] = useState({});
   const [sauses, setSauses] = useState({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
   const [sausesPisah, setSausesPisah] = useState({ "Saus Sambel": false, "Saus Tomat": false, Mayonaise: false });
@@ -33,7 +37,6 @@ export default function CashierPage() {
   const [editingCartId, setEditingCartId] = useState(null);
 
   const [isShopOpen, setIsShopOpen] = useState(true);
-  const [menuAnchor, setMenuAnchor] = useState(null);
 
   const [confirmDialog, setConfirmDialog] = useState({ open: false, noAntrian: null, docId: null });
   const [cancelDialog, setCancelDialog] = useState({ open: false, noAntrian: null, docId: null, hasCookedItems: false });
@@ -57,17 +60,6 @@ export default function CashierPage() {
     if (isGlobalEditMode) return tempCart.find((item) => item.targetAntrian).targetNama;
     return namaPelanggan.trim() === "" ? `Pelanggan #${nomorAntrian}` : namaPelanggan;
   };
-
-  useEffect(() => {
-    if (!isShopOpen) return;
-    const interval = setInterval(async () => {
-      await setDoc(doc(db, "settings", "shop"), { 
-        isOpen: true,
-        lastActive: serverTimestamp() 
-      }, { merge: true });
-    }, 60000); 
-    return () => clearInterval(interval);
-  }, [isShopOpen]);
 
   useEffect(() => {
     const unsubShop = onSnapshot(doc(db, "settings", "shop"), (docSnap) => {
@@ -129,12 +121,6 @@ export default function CashierPage() {
 
     return () => clearInterval(cleanupInterval);
   }, []);
-
-  const handleToggleShop = async () => {
-    playTone("click");
-    await setDoc(doc(db, "settings", "shop"), { isOpen: !isShopOpen }, { merge: true });
-    setSnackbar({ open: true, message: `Status Kedai diubah menjadi: ${!isShopOpen ? "BUKA 🟢" : "TUTUP 🔴"}`, severity: "info" });
-  };
 
   const toggleIsian = (id) => {
     if (isCampurMode) setIsCampurMode(false);
@@ -413,33 +399,19 @@ export default function CashierPage() {
 
       {/* --- KIRI: KDS --- */}
       <Box sx={{ width: isMobile ? "100%" : "45%", minWidth: isMobile ? "100%" : "480px", flexShrink: 0, height: isMobile ? "40%" : "100%", bgcolor: "white", borderRight: "2px solid #ffccbc", display: "flex", flexDirection: "column", zIndex: 2, boxShadow: "4px 0 15px rgba(211, 47, 47, 0.1)" }}>
+        
+        {/* PERBAIKAN: Header Diperbarui, Hapus Menu Titik Tiga, Tambah Panah Kembali ke Dashboard */}
         <Box sx={{ p: 2.5, bgcolor: COLORS.primary, color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <Typography variant="h5" fontWeight="bold">Daftar Pesanan</Typography>
           <Box display="flex" alignItems="center" gap={1}>
             <Typography variant="body1" sx={{ bgcolor: "rgba(0,0,0,0.2)", px: 2, py: 0.5, borderRadius: 2, fontWeight: "bold" }}>
               Antrean: {sortedGroups.length}
             </Typography>
-            <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)} color="inherit" size="small" sx={{ bgcolor: "rgba(255,255,255,0.15)" }}>
-              <MoreVert />
+            <IconButton onClick={() => { playTone("click"); navigate("/dashboard"); }} color="inherit" size="small" sx={{ bgcolor: "rgba(255,255,255,0.15)", borderRadius: 2, px: 1.5, gap: 0.5 }}>
+              <ArrowBack fontSize="small" /> <Typography variant="caption" fontWeight="bold">Tutup</Typography>
             </IconButton>
           </Box>
         </Box>
-
-        <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)} PaperProps={{ sx: { borderRadius: 3, minWidth: 220, mt: 1, boxShadow: "0px 4px 20px rgba(0,0,0,0.1)" } }}>
-          <MenuItem onClick={() => { handleToggleShop(); setMenuAnchor(null); }} sx={{ py: 1.5 }}>
-            <ListItemIcon><Store fontSize="small" color={isShopOpen ? "success" : "error"} /></ListItemIcon>
-            <ListItemText primary={`Status Kedai: ${isShopOpen ? "BUKA" : "TUTUP"}`} primaryTypographyProps={{ fontWeight: "bold", color: isShopOpen ? "success.main" : "error.main" }} />
-          </MenuItem>
-          <Divider sx={{ my: 0.5 }} />
-          <MenuItem onClick={async () => { 
-            await setDoc(doc(db, "settings", "shop"), { isOpen: false }, { merge: true });
-            signOut(auth); 
-            setMenuAnchor(null); 
-          }} sx={{ py: 1.5 }}>
-            <ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon>
-            <ListItemText primary="Logout Kasir" primaryTypographyProps={{ fontWeight: "bold", color: "error.main" }} />
-          </MenuItem>
-        </Menu>
         
         <Box sx={{ flexGrow: 1, overflowY: "auto", p: 2, bgcolor: "#fff3e0" }}>
           {sortedGroups.length === 0 ? (
@@ -461,7 +433,6 @@ export default function CashierPage() {
                   const isExpanded = expandedAntrian === group.docId;
                   const isOnlineOrder = group.noAntrian === "Online";
                   
-                  // Hitung Sisa Waktu untuk Peringatan di UI Kasir
                   let diffMins = 0;
                   if (isOnlineOrder && group.createdAt && typeof group.createdAt.toDate === 'function') {
                     diffMins = Math.floor((new Date() - group.createdAt.toDate()) / 1000 / 60);
@@ -598,7 +569,7 @@ export default function CashierPage() {
         
         {!isShopOpen && (
           <Alert severity="warning" variant="filled" sx={{ mb: 3, fontWeight: "bold", borderRadius: 3, boxShadow: "0px 4px 10px rgba(0,0,0,0.05)" }}>
-            ⚠️ KEDAI SEDANG TUTUP! Buka status kedai melalui menu titik tiga di pojok kiri atas untuk dapat menginput pesanan secara langsung di kasir.
+            ⚠️ KEDAI SEDANG TUTUP! Buka status kedai melalui Halaman Dashboard untuk dapat menginput pesanan secara langsung di kasir.
           </Alert>
         )}
 
@@ -615,7 +586,6 @@ export default function CashierPage() {
           <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 4, bgcolor: "white", borderTop: `4px solid ${COLORS.primary}`, opacity: isEditingDrink ? 0.5 : 1, pointerEvents: isEditingDrink ? "none" : "auto" }}>
             <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Restaurant sx={{ mr: 1 }} /> Menu Takoyaki</Typography>
             
-            {/* PERBAIKAN: Memindahkan tombol Paket Campur ke sebaris dengan Kosongkan untuk UX yang lebih ringkas */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
               <Box display="flex" alignItems="center" gap={1}>
                 <Typography variant="subtitle1" fontWeight="bold">Racik Isian:</Typography>

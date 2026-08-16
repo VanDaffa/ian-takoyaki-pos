@@ -56,12 +56,18 @@ export default function CustomerPage() {
           const lastActiveTime = data.lastActive.toDate().getTime();
           const now = new Date().getTime();
           const selisihMenit = (now - lastActiveTime) / 1000 / 60;
-          if (selisihMenit > 3) {
-            setIsShopOpen(false);
+          
+          // Jika kedai buka, tapi dashboard tidak mengirim sinyal selama > 5 menit (artinya kasir lupa nutup / tutup laptop)
+          if (selisihMenit > 5) {
+            setIsShopOpen(false); // Otomatis tutup pengaman!
           } else {
             setIsShopOpen(true);
           }
+        } else {
+          setIsShopOpen(true);
         }
+      } else {
+        setIsShopOpen(false);
       }
     });
     return () => unsubShop();
