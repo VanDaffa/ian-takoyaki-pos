@@ -303,7 +303,7 @@ export default function CustomerPage() {
                   </motion.div>
                 ) : antreanDiDepan === 0 ? (
                   <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ type: "spring" }}>
-                    <Typography fontWeight="900" color={COLORS.success} sx={{ my: 1.5, fontSize: { xs: "2rem", sm: "2.8rem" }, wordBreak: "break-word", lineHeight: 1 }}>GILIRANMU!</Typography>
+                    <Typography fontWeight="900" color={COLORS.success} sx={{ my: 1.5, fontSize: { xs: "2rem", sm: "2.8rem" }, wordBreak: "break-word", lineHeight: 1 }}>GILIRANMU🍳!</Typography>
                     <Chip label="Pesanan sedang dimasak kasir" color="success" sx={{ fontWeight: "bold", fontSize: "0.95rem", py: 1.5, px: 1, height: "auto", borderRadius: 2, '& .MuiChip-label': { whiteSpace: 'normal', display: 'block', textAlign: 'center' } }} />
                   </motion.div>
                 ) : (
@@ -359,7 +359,7 @@ export default function CustomerPage() {
               <Typography variant="h6" fontWeight="bold" color="text.secondary" sx={{ mb: 2 }}>🐙 IAN Takoyaki 🐙</Typography>
               <Divider sx={{ my: 3, borderStyle: "dashed" }} />
               <Typography variant="body1" color="text.primary" sx={{ lineHeight: 1.6, mb: 4, fontSize: "1.1rem" }}>
-                Maaf ya kak, saat ini kami sedang beristirahat atau adonan sudah habis terjual hari ini.
+                Maaf ya kak, saat ini kami sedang tidak berjualan🙏. Pantau terus info di media sosial kami😃.
               </Typography>
             </Paper>
           </motion.div>
