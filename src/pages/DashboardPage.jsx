@@ -36,19 +36,8 @@ export default function DashboardPage() {
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    let interval = null;
-    if (isShopOpen) {
-      interval = setInterval(async () => {
-        try {
-          await setDoc(doc(db, "settings", "shop"), { lastActive: serverTimestamp() }, { merge: true });
-        } catch (error) {
-          console.error("Gagal mengirim heartbeat:", error);
-        }
-      }, 60000);
-    }
-    return () => clearInterval(interval);
-  }, [isShopOpen]);
+  // Heartbeat (lastActive) sekarang dikirim oleh <ShopHeartbeat /> di App.jsx,
+  // supaya tetap jalan saat kasir berpindah ke halaman Kasir, Rekap, atau Kalkulator.
 
   const handleToggleShop = async () => {
     playTone("click");

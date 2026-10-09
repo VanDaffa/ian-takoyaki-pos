@@ -21,6 +21,38 @@ import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, serverT
 // IMPORT GAMBAR QRIS
 import qrisImage from "../assets/qris-ian.jpg";
 
+// Chip sisa waktu konfirmasi pesanan online. Punya timer sendiri, jadi menyegar otomatis
+// tanpa perlu kartu diklik dan tanpa merender ulang seluruh halaman kasir.
+function SisaWaktuChip({ createdAt, batasMenit = 15 }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const id = setInterval(tick, 15000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
+
+  if (!createdAt || typeof createdAt.toMillis !== "function") return null;
+
+  const sisaDetik = Math.round((createdAt.toMillis() + batasMenit * 60000 - now) / 1000);
+  const sisaMenit = Math.ceil(sisaDetik / 60);
+  const label =
+    sisaDetik <= 0 ? "Kedaluwarsa" : sisaDetik < 60 ? "Sisa: <1 mnt" : `Sisa: ${sisaMenit} mnt`;
+
+  return (
+    <Chip
+      label={label}
+      size="small"
+      color={sisaMenit <= 5 ? "error" : "warning"}
+      sx={{ fontWeight: "bold", height: "20px", fontSize: "0.75rem" }}
+    />
+  );
+}
+
 export default function CashierPage() {
   const navigate = useNavigate();
   const [isian, setIsian] = useState({});
@@ -111,7 +143,7 @@ export default function CashierPage() {
         const diffMins = (now - orderTime) / 1000 / 60;
         if (diffMins >= 15) {
           try {
-            await updateDoc(doc(db, "orders", docId), { statusPesanan: "batal" });
+            await updateDoc(doc(db, "orders", docId), { statusPesanan: "batal", alasanBatal: "timeout" });
           } catch (error) {
             console.error("Gagal membatalkan pesanan expired:", error);
           }
@@ -340,7 +372,7 @@ export default function CashierPage() {
 
   const executeCancelOrder = async () => {
     if (cancelDialog.docId) { 
-      await updateDoc(doc(db, "orders", cancelDialog.docId), { statusPesanan: "batal" }); 
+      await updateDoc(doc(db, "orders", cancelDialog.docId), { statusPesanan: "batal", alasanBatal: "kasir" }); 
       playTone("delete"); 
       setSnackbar({ open: true, message: `Pesanan dari ${cancelDialog.noAntrian === "Online" ? "Online" : "#" + cancelDialog.noAntrian} Dibatalkan!`, severity: "error" }); 
     }
@@ -433,13 +465,6 @@ export default function CashierPage() {
                   const isExpanded = expandedAntrian === group.docId;
                   const isOnlineOrder = group.noAntrian === "Online";
                   
-                  let diffMins = 0;
-                  if (isOnlineOrder && group.createdAt && typeof group.createdAt.toDate === 'function') {
-                    diffMins = Math.floor((new Date() - group.createdAt.toDate()) / 1000 / 60);
-                  }
-                  const minsLeft = 15 - diffMins;
-                  const isWarningTime = minsLeft <= 5;
-                  
                   const isThisGroupBeingEdited = globalEditingDocId === group.docId;
                   const isAnotherGroupBeingEdited = globalEditingDocId && globalEditingDocId !== group.docId;
 
@@ -464,14 +489,7 @@ export default function CashierPage() {
                               
                               <Box display="flex" alignItems="center" gap={1}>
                                 <Typography variant="body1" color={COLORS.textGrey} fontWeight="bold">{group.items.length} Item • {group.jamMasuk}</Typography>
-                                {isOnlineOrder && (
-                                  <Chip 
-                                    label={minsLeft > 0 ? `Sisa: ${minsLeft} mnt` : "Kedaluwarsa"} 
-                                    size="small" 
-                                    color={isWarningTime ? "error" : "warning"} 
-                                    sx={{ fontWeight: "bold", height: "20px", fontSize: "0.7rem" }} 
-                                  />
-                                )}
+                                {isOnlineOrder && <SisaWaktuChip createdAt={group.createdAt} />}
                               </Box>
                             </Box>
                             <Box textAlign="right">

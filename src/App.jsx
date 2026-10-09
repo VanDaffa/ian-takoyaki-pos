@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./utils/firebase";
+import { auth, db } from "./utils/firebase";
+import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 
 // Import Semua Halaman
 import CustomerPage from "./pages/CustomerPage";
@@ -10,6 +11,37 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import RecapPage from "./pages/RecapPage";
 import CalculatorPage from "./pages/CalculatorPage";
+
+// Mengirim sinyal "kasir masih aktif" (lastActive) tiap menit selama kasir login
+// dan kedai berstatus buka. Berjalan di SEMUA halaman kasir (dashboard, kasir, rekap, kalkulator),
+// jadi sinyal tidak putus saat kasir berpindah halaman.
+function ShopHeartbeat() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "shop"), (snap) => {
+      setIsOpen(snap.exists() && snap.data().isOpen === true);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const kirim = () =>
+      setDoc(doc(db, "settings", "shop"), { lastActive: serverTimestamp() }, { merge: true })
+        .catch((err) => console.error("Gagal mengirim heartbeat:", err));
+    kirim();
+    const id = setInterval(kirim, 60000);
+    const onVisible = () => { if (document.visibilityState === "visible") kirim(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [isOpen]);
+
+  return null;
+}
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -27,6 +59,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {user && <ShopHeartbeat />}
       <Routes>
         {/* Halaman Pelanggan (Terbuka Publik) */}
         <Route path="/menu" element={<CustomerPage />} />
