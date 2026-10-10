@@ -39,8 +39,8 @@ const EMOJI_ISIAN = {
 // Isi bagian ini kalau mau menampilkan tombol Instagram dan jam buka di layar "Kedai Tutup".
 // Dibiarkan kosong = bagian tersebut tidak ditampilkan.
 const INFO_KEDAI = {
-  instagramUrl: "https://www.instagram.com/friskalmnd/?utm_source=ig_web_button_share_sheet", // contoh: "https://instagram.com/akun_kamu"
-  jamBuka: "Setiap Weekend, 16.00 - 22.00",      // contoh: "Setiap hari, 16.00 - 22.00"
+  instagramUrl: "https://www.instagram.com/", // contoh: "https://instagram.com/akun_kamu"
+  jamBuka: "Weekend, 16.00 - 22.00",      // contoh: "Setiap hari, 16.00 - 22.00"
 };
 
 const LANGKAH_STATUS = ["Bayar", "Antre", "Dimasak", "Siap"];
@@ -88,7 +88,7 @@ function Shell({ children, centered = false, pt = 4, pb = 6 }) {
     <MotionConfig reducedMotion="user">
       <Box
         sx={{
-          minHeight: "100vh", bgcolor: COLORS.background, pt, pb,
+          minHeight: "100vh", "@supports (height: 100dvh)": { minHeight: "100dvh" }, bgcolor: COLORS.background, pt, pb,
           ...(centered ? { display: "flex", alignItems: "center" } : {}),
         }}
       >
@@ -603,7 +603,7 @@ export default function CustomerPage() {
       <Shell centered pt={4} pb={4}>
         <Container maxWidth="sm">
           <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
-            <Paper elevation={4} sx={{ p: 4, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: `8px solid ${COLORS.success}` }}>
+            <Paper elevation={4} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: `8px solid ${COLORS.success}` }}>
               <StatusStepper aktif={3} />
               <CheckCircleOutline sx={{ fontSize: 72, color: COLORS.success, mb: 1 }} />
               <Typography variant="h4" fontWeight={800} color="success.main" gutterBottom>
@@ -650,7 +650,7 @@ export default function CustomerPage() {
       <Shell centered pt={4} pb={4}>
         <Container maxWidth="sm">
           <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
-            <Paper elevation={4} sx={{ p: 4, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: "8px solid #c62828" }}>
+            <Paper elevation={4} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: "8px solid #c62828" }}>
               <CancelPresentation sx={{ fontSize: 72, color: "#c62828", mb: 1 }} />
               <Typography variant="h5" fontWeight={800} sx={{ color: "#c62828" }} gutterBottom>
                 PESANAN DIBATALKAN
@@ -695,7 +695,7 @@ export default function CustomerPage() {
       <Shell pt={4} pb={4}>
         <Container maxWidth="sm">
           <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-            <Paper elevation={4} sx={{ p: 3, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: `8px solid ${warnaAtas}` }}>
+            <Paper elevation={4} sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: `8px solid ${warnaAtas}` }}>
               <Typography variant="h5" fontWeight={800} gutterBottom>{judul}</Typography>
               <Typography variant="body2" color="text.secondary">{subjudul}</Typography>
 
@@ -804,7 +804,7 @@ export default function CustomerPage() {
       <Shell centered pt={8} pb={8}>
         <Container maxWidth="sm">
           <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
-            <Paper elevation={4} sx={{ p: 4, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: "8px solid #757575" }}>
+            <Paper elevation={4} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: "8px solid #757575" }}>
               <NoFood sx={{ fontSize: 72, color: "#757575", mb: 1 }} />
               <Typography variant="h5" fontWeight={800} gutterBottom>Kedai sedang tutup</Typography>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
@@ -842,7 +842,7 @@ export default function CustomerPage() {
         <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
           <Box sx={{ textAlign: "center", mb: 3 }}>
             <Storefront sx={{ fontSize: 56, color: COLORS.primary }} />
-            <Typography variant="h4" fontWeight={900} color={COLORS.info}>IAN TAKOYAKI</Typography>
+            <Typography variant="h4" fontWeight={900} color={COLORS.info} sx={{ fontSize: { xs: "1.8rem", sm: "2.125rem" } }}>IAN TAKOYAKI</Typography>
             <Typography variant="body2" fontWeight={700} color="text.secondary">Pesan langsung dari HP kamu!</Typography>
             <Chip
               size="small" icon={<AccessTime />}
@@ -861,7 +861,7 @@ export default function CustomerPage() {
         {/* NAMA */}
         <Box ref={namaRef}>
           <motion.div key={shakeKey} animate={shakeKey ? { x: [0, -8, 8, -6, 6, 0] } : {}} transition={{ duration: 0.4 }}>
-            <Paper elevation={2} sx={{ p: 3, mb: 3, borderRadius: 4, borderTop: `6px solid ${COLORS.success}`, bgcolor: "white" }}>
+            <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 3, borderRadius: 4, borderTop: `6px solid ${COLORS.success}`, bgcolor: "white" }}>
               <Box display="flex" alignItems="center" gap={1} mb={2}>
                 <Person sx={{ color: COLORS.success }} />
                 <Typography variant="h6" fontWeight={800} color={COLORS.success}>Data pelanggan</Typography>
@@ -871,7 +871,7 @@ export default function CustomerPage() {
                 value={namaPelanggan} error={namaError}
                 onChange={(e) => { setNamaPelanggan(e.target.value); if (namaError) setNamaError(false); }}
                 helperText={namaError ? "Isi nama dulu ya, biar kasir tahu siapa yang dipanggil." : "Nama ini dipanggil saat pesananmu siap."}
-                slotProps={{ htmlInput: { autoComplete: "given-name", maxLength: 30 } }}
+                slotProps={{ htmlInput: { autoComplete: "given-name", maxLength: 30 }, formHelperText: { sx: { ml: 0.5 } } }}
               />
             </Paper>
           </motion.div>
@@ -880,7 +880,7 @@ export default function CustomerPage() {
         {/* MENU TAKOYAKI */}
         <Paper
           component={motion.div} layout elevation={2}
-          sx={{ p: 3, mb: 3, borderRadius: 4, borderTop: `6px solid ${COLORS.primary}`, bgcolor: "white", overflow: "hidden" }}
+          sx={{ p: { xs: 2, sm: 3 }, mb: 3, borderRadius: 4, borderTop: `6px solid ${COLORS.primary}`, bgcolor: "white", overflow: "hidden" }}
         >
           <Box display="flex" alignItems="center" gap={1} mb={2}>
             <Restaurant sx={{ color: COLORS.primary }} />
@@ -901,7 +901,7 @@ export default function CustomerPage() {
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); gantiMode(tab.id); } }}
                   sx={{
                     flex: 1, textAlign: "center", py: 1.5, cursor: "pointer", position: "relative", zIndex: 1,
-                    borderRadius: 3.5, fontWeight: 800, fontSize: "0.9rem",
+                    borderRadius: 3.5, px: 1, lineHeight: 1.3, fontWeight: 800, fontSize: { xs: "0.78rem", sm: "0.9rem" },
                     color: aktif ? tab.teks : "#616161", transition: "color 0.2s",
                   }}
                 >
@@ -1083,7 +1083,7 @@ export default function CustomerPage() {
         </Paper>
 
         {/* MENU MINUMAN */}
-        <Paper elevation={2} sx={{ p: 3, mb: 3, borderRadius: 4, borderTop: `6px solid ${COLORS.info}`, bgcolor: "white" }}>
+        <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 3, borderRadius: 4, borderTop: `6px solid ${COLORS.info}`, bgcolor: "white" }}>
           <Box display="flex" alignItems="center" gap={1} mb={2}>
             <LocalDrink sx={{ color: COLORS.info }} />
             <Typography variant="h6" fontWeight={800} color={COLORS.info}>Menu minuman</Typography>
@@ -1120,7 +1120,7 @@ export default function CustomerPage() {
         <AnimatePresence>
           {cart.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <Paper elevation={2} sx={{ p: 3, mb: 3, borderRadius: 4, bgcolor: "white" }}>
+              <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, mb: 3, borderRadius: 4, bgcolor: "white" }}>
                 <Typography variant="h6" fontWeight={800} gutterBottom>🛒 Keranjang pesanan</Typography>
                 <AnimatePresence initial={false}>
                   {cart.map((item) => (
@@ -1129,23 +1129,23 @@ export default function CustomerPage() {
                       initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }}
                     >
                       <Box sx={{ py: 1.5, borderBottom: "1px dashed #ddd" }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
-                          <Box>
-                            <Typography fontWeight={800}>{item.nama}</Typography>
-                            <ChipTambahan item={item} />
-                          </Box>
-                          <Box display="flex" alignItems="center" gap={0.5}>
-                            <Typography fontWeight={800} sx={{ whiteSpace: "nowrap" }}>{formatRupiah(item.harga)}</Typography>
-                            {item.type === "food" && (
-                              <IconButton aria-label="Tambah porsi yang sama" size="small" onClick={() => duplicateItem(item)} sx={{ color: COLORS.info }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" columnGap={1}>
+                          <Typography fontWeight={800} sx={{ flex: "1 1 130px", minWidth: 0, pt: 0.5, overflowWrap: "break-word" }}>{item.nama}</Typography>
+                          <Box display="flex" alignItems="center" gap={0.25} sx={{ flexShrink: 0, ml: "auto" }}>
+                            <Typography fontWeight={800} sx={{ whiteSpace: "nowrap", mr: 0.5 }}>{formatRupiah(item.harga)}</Typography>
+                            {item.type === "food" ? (
+                              <IconButton aria-label="Tambah porsi yang sama" onClick={() => duplicateItem(item)} sx={{ color: COLORS.info, p: 1 }}>
                                 <ContentCopy fontSize="small" />
                               </IconButton>
+                            ) : (
+                              <Box sx={{ width: 36, flexShrink: 0 }} aria-hidden="true" />
                             )}
-                            <IconButton aria-label="Hapus dari keranjang" size="small" onClick={() => removeFromCart(item.id)} sx={{ color: "#c62828" }}>
+                            <IconButton aria-label="Hapus dari keranjang" onClick={() => removeFromCart(item.id)} sx={{ color: "#c62828", p: 1 }}>
                               <Delete fontSize="small" />
                             </IconButton>
                           </Box>
                         </Box>
+                        <ChipTambahan item={item} />
                       </Box>
                     </motion.div>
                   ))}
@@ -1171,11 +1171,15 @@ export default function CustomerPage() {
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
             style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 1100 }}
           >
-            <Paper elevation={10} sx={{ p: 2, borderTopLeftRadius: 24, borderTopRightRadius: 24, bgcolor: "white" }}>
-              <Container maxWidth="sm" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                <Box display="flex" alignItems="center" gap={2}>
+            <Paper
+              elevation={10}
+              sx={{ px: 2, pt: 2, pb: "calc(16px + env(safe-area-inset-bottom))", borderTopLeftRadius: 24, borderTopRightRadius: 24, bgcolor: "white" }}
+            >
+              <Container maxWidth="sm" disableGutters sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
+                <Box display="flex" alignItems="center" gap={1.5} sx={{ minWidth: 0 }}>
                   <Badge
                     color="error"
+                    sx={{ display: "none", "@media (min-width:400px)": { display: "inline-flex" } }}
                     badgeContent={
                       <motion.span key={jumlahItem} initial={{ scale: 1.6 }} animate={{ scale: 1 }} style={{ display: "inline-block" }}>
                         {jumlahItem}
@@ -1184,11 +1188,14 @@ export default function CustomerPage() {
                   >
                     <ShoppingBag sx={{ fontSize: 30, color: COLORS.textDark }} />
                   </Badge>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: "block", lineHeight: 1.2 }}>Total</Typography>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: "block", lineHeight: 1.2 }}>
+                      Total
+                      <Box component="span" sx={{ "@media (min-width:400px)": { display: "none" } }}> · {jumlahItem} item</Box>
+                    </Typography>
                     <motion.span
                       key={totalCartPrice} initial={{ scale: 1.2 }} animate={{ scale: 1 }}
-                      style={{ display: "inline-block", fontWeight: 900, fontSize: "1.4rem", color: COLORS.primary }}
+                      style={{ display: "inline-block", fontWeight: 900, fontSize: "clamp(1.05rem, 5vw, 1.4rem)", color: COLORS.primary, whiteSpace: "nowrap" }}
                     >
                       {formatRupiah(totalCartPrice)}
                     </motion.span>
@@ -1196,7 +1203,11 @@ export default function CustomerPage() {
                 </Box>
                 <Button
                   variant="contained" onClick={bukaReview} endIcon={<Send />}
-                  sx={{ py: 1.5, px: 3, borderRadius: 4, fontWeight: 800, bgcolor: COLORS.textDark, "&:hover": { bgcolor: "#000" } }}
+                  sx={{
+                    flexShrink: 0, whiteSpace: "nowrap", py: 1.5, px: { xs: 2, sm: 3 }, borderRadius: 4, fontWeight: 800,
+                    fontSize: { xs: "0.85rem", sm: "0.95rem" }, bgcolor: COLORS.textDark, "&:hover": { bgcolor: "#000" },
+                    "& .MuiButton-endIcon": { ml: 0.75 },
+                  }}
                 >
                   CEK PESANAN
                 </Button>
