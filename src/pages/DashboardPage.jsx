@@ -7,7 +7,7 @@ import {
   PointOfSale, InsertChartRounded, Storefront, 
   Logout, AccessTime, WavingHand, Calculate 
 } from "@mui/icons-material";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 // Firebase & Utils
@@ -75,9 +75,9 @@ export default function DashboardPage() {
     <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, pt: { xs: 4, md: 8 }, pb: 4 }}>
       <CssBaseline />
       <Container maxWidth="md">
-        <motion.div variants={containerVariants} initial="hidden" animate="show">
+        <m.div variants={containerVariants} initial="hidden" animate="show">
           
-          <motion.div variants={itemVariants}>
+          <m.div variants={itemVariants}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
               <Box display="flex" alignItems="center" gap={2}>
                 <Avatar sx={{ bgcolor: COLORS.primary, width: 56, height: 56, boxShadow: "0 4px 15px rgba(211, 47, 47, 0.3)" }}>
@@ -92,15 +92,15 @@ export default function DashboardPage() {
                   </Typography>
                 </Box>
               </Box>
-              <motion.div whileTap={{ scale: 0.85 }}>
+              <m.div whileTap={{ scale: 0.85 }}>
                 <IconButton onClick={handleLogout} sx={{ bgcolor: "#ffebee", color: "error.main", borderRadius: 3, p: 1.5 }}>
                   <Logout />
                 </IconButton>
-              </motion.div>
+              </m.div>
             </Box>
-          </motion.div>
+          </m.div>
 
-          <motion.div variants={itemVariants}>
+          <m.div variants={itemVariants}>
             <Card elevation={0} sx={{ borderRadius: 4, mb: 3, border: "1px solid #eee", overflow: "hidden" }}>
               <Box display="flex" flexDirection="column">
                 <Box p={2.5} bgcolor="white" display="flex" justifyContent="space-between" alignItems="center">
@@ -135,11 +135,11 @@ export default function DashboardPage() {
                 </Box>
               </Box>
             </Card>
-          </motion.div>
+          </m.div>
 
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2.5 }}>
             
-            <motion.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
+            <m.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ borderRadius: 4, bgcolor: COLORS.primary, color: "white", height: "100%", border: "2px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(211, 47, 47, 0.2)" }}>
                 <CardActionArea onClick={() => navigateTo("/cashier")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: "160px" }}>
                   <Box sx={{ p: 1.5, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 3, mb: 2 }}>
@@ -151,9 +151,9 @@ export default function DashboardPage() {
                   </Box>
                 </CardActionArea>
               </Card>
-            </motion.div>
+            </m.div>
 
-            <motion.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
+            <m.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ borderRadius: 4, bgcolor: COLORS.info, color: "white", height: "100%", border: "2px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(2, 136, 209, 0.2)" }}>
                 <CardActionArea onClick={() => navigateTo("/recap")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: "160px" }}>
                   <Box sx={{ p: 1.5, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 3, mb: 2 }}>
@@ -165,9 +165,9 @@ export default function DashboardPage() {
                   </Box>
                 </CardActionArea>
               </Card>
-            </motion.div>
+            </m.div>
 
-            <motion.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
+            <m.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ borderRadius: 4, bgcolor: "#ffb300", color: "white", height: "100%", border: "2px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(255, 179, 0, 0.2)" }}>
                 <CardActionArea onClick={() => navigateTo("/calculator")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: "160px" }}>
                   <Box sx={{ p: 1.5, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 3, mb: 2 }}>
@@ -179,10 +179,10 @@ export default function DashboardPage() {
                   </Box>
                 </CardActionArea>
               </Card>
-            </motion.div>
+            </m.div>
 
           </Box>
-        </motion.div>
+        </m.div>
       </Container>
     </Box>
   );

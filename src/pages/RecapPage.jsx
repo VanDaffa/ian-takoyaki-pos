@@ -8,7 +8,7 @@ import {
   ArrowBack, InsertChartRounded, MonetizationOn,
   Receipt, WarningAmber, PointOfSale, Close, Visibility
 } from "@mui/icons-material";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { db } from "../utils/firebase";
 import { collection, onSnapshot, query, orderBy, getDocs, writeBatch, addDoc, serverTimestamp } from "firebase/firestore";
@@ -221,10 +221,10 @@ export default function RecapPage() {
       </Dialog>
 
       <Container maxWidth="sm">
-        <motion.div variants={containerVariants} initial="hidden" animate="show">
+        <m.div variants={containerVariants} initial="hidden" animate="show">
           
           {/* HEADER */}
-          <motion.div variants={itemVariants}>
+          <m.div variants={itemVariants}>
             <Box display="flex" alignItems="center" gap={2} mb={3}>
               <IconButton onClick={() => navigateTo("/dashboard")} sx={{ bgcolor: "white", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
                 <ArrowBack />
@@ -233,10 +233,10 @@ export default function RecapPage() {
                 Rekap Penjualan
               </Typography>
             </Box>
-          </motion.div>
+          </m.div>
 
           {/* KARTU SESI BERJALAN (LIVE) */}
-          <motion.div variants={itemVariants}>
+          <m.div variants={itemVariants}>
             <Card elevation={0} sx={{ borderRadius: 4, bgcolor: COLORS.primary, color: "white", mb: 4, p: 3, position: "relative", overflow: "hidden", boxShadow: "0 10px 30px rgba(211, 47, 47, 0.2)" }}>
               <PointOfSale sx={{ position: "absolute", right: -20, bottom: -20, fontSize: 150, opacity: 0.1 }} />
               
@@ -270,10 +270,10 @@ export default function RecapPage() {
                 AKHIRI SESI & SIMPAN REKAP
               </Button>
             </Card>
-          </motion.div>
+          </m.div>
 
           {/* RIWAYAT REKAP */}
-          <motion.div variants={itemVariants}>
+          <m.div variants={itemVariants}>
             <Typography variant="h6" fontWeight="900" color={COLORS.textDark} mb={2} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <InsertChartRounded color="info" /> Riwayat Penjualan
             </Typography>
@@ -289,7 +289,7 @@ export default function RecapPage() {
               <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <AnimatePresence>
                   {historyRecaps.map((recap) => (
-                    <motion.div key={recap.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
+                    <m.div key={recap.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, scale: 0.9 }}>
                       <Card elevation={0} sx={{ p: 2.5, borderRadius: 3, border: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "white" }}>
                         <Box>
                           <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block" mb={0.5}>
@@ -319,14 +319,14 @@ export default function RecapPage() {
                         </Button>
                         
                       </Card>
-                    </motion.div>
+                    </m.div>
                   ))}
                 </AnimatePresence>
               </Box>
             )}
-          </motion.div>
+          </m.div>
 
-        </motion.div>
+        </m.div>
       </Container>
     </Box>
   );

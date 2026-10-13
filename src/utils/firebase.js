@@ -1,9 +1,7 @@
-// File: src/utils/firebase.js
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
-// TODO: Ganti dengan konfigurasi milikmu dari Firebase Console!
 const firebaseConfig = {
   apiKey: "AIzaSyBPz9oez60xCDjaxKlzH1POVDrK2uk2lOE",
   authDomain: "ian-takoyaki-pos.firebaseapp.com",
@@ -18,6 +16,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Inisialisasi Firestore Database
-export const db = getFirestore(app);
-
 export const auth = getAuth(app);
+
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});

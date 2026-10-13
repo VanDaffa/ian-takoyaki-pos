@@ -9,7 +9,7 @@ import {
   Add, Remove, Restaurant, CheckCircle, AttachMoney, Kitchen,
   Person, Delete, RestartAlt, ShoppingBasket, ContentCopy, Edit, MoneyOff, SaveAs, LocalDrink, ArrowBack
 } from "@mui/icons-material";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { COLORS, VARIAN_ISIAN, SAUS_LIST } from "../utils/constants";
 import { formatName, generateSmartName, getSauceColor } from "../utils/helpers";
@@ -19,7 +19,7 @@ import { db } from "../utils/firebase";
 import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 
 // IMPORT GAMBAR QRIS
-import qrisImage from "../assets/qris-ian.jpg";
+import qrisImage from "../assets/qris-ian.webp";
 
 // Chip sisa waktu konfirmasi pesanan online. Punya timer sendiri, jadi menyegar otomatis
 // tanpa perlu kartu diklik dan tanpa merender ulang seluruh halaman kasir.
@@ -453,7 +453,7 @@ export default function CashierPage() {
               <Typography variant="h6" color="text.secondary">Siap menerima pesanan baru!</Typography>
             </Box>
           ) : (
-            <Stack spacing={2} component={motion.div} layout>
+            <Stack spacing={2} component={m.div} layout>
               <AnimatePresence>
                 {sortedGroups.map((group) => {
                   const isAllLunas = group.items.every((i) => i.statusBayar === "lunas");
@@ -469,7 +469,7 @@ export default function CashierPage() {
                   const isAnotherGroupBeingEdited = globalEditingDocId && globalEditingDocId !== group.docId;
 
                   return (
-                    <motion.div key={group.docId} layout initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -50 }}>
+                    <m.div key={group.docId} layout initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -50 }}>
                       <Card elevation={3} sx={{ 
                         borderRadius: 3, 
                         border: isThisGroupBeingEdited ? `3px dashed orange` : isOnlineOrder ? `2px dashed ${COLORS.info}` : isAllLunas ? `2px solid ${COLORS.success}` : `2px solid ${COLORS.primary}`, 
@@ -540,29 +540,29 @@ export default function CashierPage() {
                                   <Button fullWidth variant="contained" size="large" color="info" onClick={async () => { playTone("success"); await updateDoc(doc(db, "orders", group.docId), { noAntrian: nomorAntrian }); setNomorAntrian(prev => prev + 1); setSnackbar({ open: true, message: `Pesanan diterima sebagai Antrean #${nomorAntrian}! 🐙`, severity: "success" }); }} sx={{ fontWeight: "bold" }}>TERIMA PESANAN</Button>
                                 </Box>
                               ) : (
-                                <Box display="flex" flexDirection="column" gap={1} width="100%" component={motion.div} layout>
-                                  <Box display="flex" gap={1} width="100%" component={motion.div} layout>
+                                <Box display="flex" flexDirection="column" gap={1} width="100%" component={m.div} layout>
+                                  <Box display="flex" gap={1} width="100%" component={m.div} layout>
                                     <AnimatePresence>
                                       {showEditBtn && (
-                                        <motion.div key="btn-ubah" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
+                                        <m.div key="btn-ubah" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
                                           <Button fullWidth variant="outlined" size="large" onClick={() => editPesananFullBatch(group.noAntrian, group.namaPemesan, group.docId)} startIcon={<Edit />} sx={{ color: COLORS.textDark, borderColor: COLORS.textDark, fontWeight: "bold" }}>UBAH SEMUA</Button>
-                                        </motion.div>
+                                        </m.div>
                                       )}
                                     </AnimatePresence>
-                                    <motion.div layout style={{ flex: 1 }}>
+                                    <m.div layout style={{ flex: 1 }}>
                                       <Button fullWidth variant="outlined" color="error" size="large" onClick={() => requestCancelOrder(group.noAntrian, group.docId)} startIcon={<Delete />} sx={{ fontWeight: "bold" }}>BATALKAN</Button>
-                                    </motion.div>
+                                    </m.div>
                                   </Box>
                                   
-                                  <Box display="flex" gap={1} width="100%" component={motion.div} layout>
-                                    <motion.div layout style={{ flex: 1 }}>
+                                  <Box display="flex" gap={1} width="100%" component={m.div} layout>
+                                    <m.div layout style={{ flex: 1 }}>
                                       <Button fullWidth variant="contained" size="large" color={isAllLunas ? "success" : "error"} onClick={() => handleBayarLunasGroup(group.noAntrian, group.docId)} startIcon={isAllLunas ? <MoneyOff /> : <AttachMoney />} sx={{ fontSize: "1rem", fontWeight: "bold" }}>{isAllLunas ? "BATAL LUNAS" : "BAYAR SEMUA"}</Button>
-                                    </motion.div>
+                                    </m.div>
                                     <AnimatePresence>
                                       {showSelesaiBtn && (
-                                        <motion.div key="btn-selesai" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
+                                        <m.div key="btn-selesai" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
                                           <Button fullWidth variant="contained" size="large" sx={{ bgcolor: COLORS.secondary, color: "white", fontSize: "1rem", fontWeight: "bold" }} onClick={() => requestFinishOrder(group.noAntrian, group.docId)} startIcon={<Kitchen />}>SELESAI</Button>
-                                        </motion.div>
+                                        </m.div>
                                       )}
                                     </AnimatePresence>
                                   </Box>
@@ -572,7 +572,7 @@ export default function CashierPage() {
                           </Box>
                         </Collapse>
                       </Card>
-                    </motion.div>
+                    </m.div>
                   );
                 })}
               </AnimatePresence>
@@ -610,22 +610,22 @@ export default function CashierPage() {
                 <Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "default"} size="small" sx={{ fontWeight: "bold" }} />
               </Box>
               <Box display="flex" alignItems="center" gap={1}>
-                <motion.div whileTap={{ scale: 0.95 }}>
+                <m.div whileTap={{ scale: 0.95 }}>
                   <Button size="small" variant="contained" onClick={setPaketCampur} sx={{ bgcolor: COLORS.secondary, color: "white", fontWeight: "bold", borderRadius: 1.5, px: 2, boxShadow: "none" }}>
                     PILIH CAMPUR
                   </Button>
-                </motion.div>
+                </m.div>
                 <Button size="small" color="error" startIcon={<RestartAlt />} onClick={clearTakoyakiForm} sx={{ textTransform: "none", fontWeight: "bold" }}>Kosongkan</Button>
               </Box>
             </Box>
             
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, mb: 3 }}>
               {VARIAN_ISIAN.map((item) => (
-                <motion.div key={item.id} whileTap={{ scale: 0.95 }} style={{ width: "100%", height: "100%" }}>
+                <m.div key={item.id} whileTap={{ scale: 0.95 }} style={{ width: "100%", height: "100%" }}>
                   <Card elevation={0} onClick={(e) => { e.stopPropagation(); toggleIsian(item.id); }} sx={{ bgcolor: isian[item.id] > 0 ? COLORS.cardSelected : "#f5f5f5", border: isian[item.id] > 0 ? `3px solid ${COLORS.primary}` : "1px solid #eee", boxShadow: isian[item.id] > 0 ? "0 4px 12px rgba(211, 47, 47, 0.3)" : "none", borderRadius: 2, cursor: "pointer", height: "60px", width: "100%", display: "flex", justifyContent: "center", alignItems: "center", transition: "0.1s", userSelect: "none", boxSizing: "border-box", px: 1 }}>
                     <Typography variant="body1" fontWeight="900" align="center" sx={{ color: isian[item.id] > 0 ? COLORS.primary : "#757575", letterSpacing: 0.5, fontSize: "0.85rem", lineHeight: 1.1 }}>{item.label}</Typography>
                   </Card>
-                </motion.div>
+                </m.div>
               ))}
             </Box>
 
@@ -648,18 +648,18 @@ export default function CashierPage() {
                     </Box>
                     <AnimatePresence>
                       {sauses[saus] && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
+                        <m.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
                           <FormControlLabel control={<Switch size="small" checked={sausesPisah[saus]} onChange={(e) => handleSausPisahChange(saus)} color="error" />} label={<Typography variant="caption" color="error" fontWeight="bold">Pisah</Typography>} sx={{ m: 0, ml: 1 }} />
-                        </motion.div>
+                        </m.div>
                       )}
                     </AnimatePresence>
                   </Box>
                 ))}
               </Box>
             </Box>
-            <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
+            <m.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
               <Button fullWidth variant="contained" onClick={handleTakoyakiCartAction} disabled={totalPilihan === 0 && !isEditingFood} sx={{ bgcolor: isEditingFood ? COLORS.info : COLORS.primary, borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingFood ? "PERBARUI TAKOYAKI INI" : `+ TAMBAH TAKOYAKI ${totalPilihan > 0 ? `(Rp ${hitungHargaPorsi().toLocaleString()})` : ""}`}</Button>
-            </motion.div>
+            </m.div>
           </Paper>
 
           <Paper elevation={0} sx={{ p: 2, mb: 4, borderRadius: 4, bgcolor: "#e3f2fd", borderTop: `4px solid ${COLORS.info}`, opacity: isEditingFood ? 0.5 : 1, pointerEvents: isEditingFood ? "none" : "auto" }}>
@@ -675,9 +675,9 @@ export default function CashierPage() {
                 <IconButton onClick={() => { if (qtyAir < 10) { setQtyAir(qtyAir + 1); playTone("click"); } }} disabled={qtyAir >= 10}><Add color="info" /></IconButton>
               </Box>
             </Box>
-            <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
+            <m.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
               <Button fullWidth variant="contained" color="info" onClick={handleDrinkCartAction} disabled={qtyAir === 0 && !isEditingDrink} sx={{ borderRadius: 2, height: "55px", fontSize: "1rem", fontWeight: "bold" }}>{isEditingDrink ? "PERBARUI MINUMAN INI" : `+ TAMBAH MINUMAN ${qtyAir > 0 ? `(Rp ${(qtyAir * 5000).toLocaleString()})` : ""}`}</Button>
-            </motion.div>
+            </m.div>
           </Paper>
 
           {tempCart.length > 0 && (
@@ -686,7 +686,7 @@ export default function CashierPage() {
               <List dense sx={{ p: 0, mb: 2 }}>
                 <AnimatePresence>
                   {tempCart.map((item) => (
-                    <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} style={{ marginBottom: "12px" }}>
+                    <m.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} style={{ marginBottom: "12px" }}>
                       <Box sx={{ border: `1px solid ${editingCartId === item.id ? COLORS.info : '#ddd'}`, borderRadius: 2, p: 1.5, bgcolor: editingCartId === item.id ? "#e3f2fd" : "white", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
                         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                           <Typography fontWeight="bold" fontSize="1.1rem" sx={{ pr: 2, lineHeight: 1.2 }}>{item.nama}</Typography>
@@ -710,15 +710,15 @@ export default function CashierPage() {
                           <IconButton color="error" onClick={() => hapusDariTemp(item.id)} sx={{ bgcolor: "#ffebee", borderRadius: 2 }}><Delete /></IconButton>
                         </Box>
                       </Box>
-                    </motion.div>
+                    </m.div>
                   ))}
                 </AnimatePresence>
               </List>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}><Typography variant="h6">Total Draf:</Typography><Typography variant="h4" fontWeight="bold" color={COLORS.primary}>Rp {tempCart.reduce((a, b) => a + b.harga, 0).toLocaleString()}</Typography></Box>
-              <motion.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
+              <m.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
                 <Button fullWidth variant="contained" size="large" onClick={prosesPesananFinal} startIcon={editingCartId ? <SaveAs sx={{ fontSize: 30 }} /> : <ShoppingBasket sx={{ fontSize: 30 }} />} disabled={!!editingCartId} sx={{ height: "70px", borderRadius: 3, bgcolor: COLORS.textDark, fontSize: "1.3rem", fontWeight: "bold", "&:hover": { bgcolor: "black" } }}>{isGlobalEditMode ? `SIMPAN PERUBAHAN #${getTargetQueueNumber()}` : `PROSES SEMUA & NEXT (#${nomorAntrian})`}</Button>
                 {editingCartId && <Typography variant="caption" color="error" align="center" display="block">Selesaikan perubahan rincian dulu sebelum lanjut.</Typography>}
-              </motion.div>
+              </m.div>
               <div ref={bottomRef} />
             </Paper>
           )}

@@ -6,7 +6,7 @@ import {
 import { 
   ArrowBack, Add, Remove, RestartAlt, Calculate, MonetizationOn, QrCode2 
 } from "@mui/icons-material";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { COLORS } from "../utils/constants";
 import { playTone } from "../utils/soundEngine";
@@ -72,9 +72,9 @@ export default function CalculatorPage() {
       </Snackbar>
 
       <Container maxWidth="md">
-        <motion.div variants={containerVariants} initial="hidden" animate="show">
+        <m.div variants={containerVariants} initial="hidden" animate="show">
           
-          <motion.div variants={itemVariants}>
+          <m.div variants={itemVariants}>
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={4}>
               <Box display="flex" alignItems="center" gap={2}>
                 <IconButton onClick={() => { playTone("click"); navigate("/dashboard"); }} sx={{ bgcolor: "white", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
@@ -94,9 +94,9 @@ export default function CalculatorPage() {
                 Reset
               </Button>
             </Box>
-          </motion.div>
+          </m.div>
 
-          <motion.div variants={itemVariants}>
+          <m.div variants={itemVariants}>
             <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: 4, bgcolor: COLORS.primary, color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 10px 25px rgba(211, 47, 47, 0.2)" }}>
               <Box>
                 <Typography variant="body2" fontWeight="bold" sx={{ opacity: 0.9 }}>Estimasi Total Pendapatan</Typography>
@@ -104,11 +104,11 @@ export default function CalculatorPage() {
               </Box>
               <Calculate sx={{ fontSize: 50, opacity: 0.2 }} />
             </Paper>
-          </motion.div>
+          </m.div>
 
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2.5 }}>
             
-            <motion.div variants={itemVariants} style={{ height: "100%" }}>
+            <m.div variants={itemVariants} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: "white", height: "100%", border: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <Typography variant="h6" fontWeight="900" color={COLORS.textDark} align="center" gutterBottom sx={{ borderBottom: "2px dashed #eee", pb: 1.5 }}>
                   🐙 Takoyaki 20k
@@ -138,9 +138,9 @@ export default function CalculatorPage() {
                   </Box>
                 </Box>
               </Card>
-            </motion.div>
+            </m.div>
 
-            <motion.div variants={itemVariants} style={{ height: "100%" }}>
+            <m.div variants={itemVariants} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: "white", height: "100%", border: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <Typography variant="h6" fontWeight="900" color={COLORS.textDark} align="center" gutterBottom sx={{ borderBottom: "2px dashed #eee", pb: 1.5 }}>
                   🐙 Takoyaki 15k
@@ -170,9 +170,9 @@ export default function CalculatorPage() {
                   </Box>
                 </Box>
               </Card>
-            </motion.div>
+            </m.div>
 
-            <motion.div variants={itemVariants} style={{ height: "100%" }}>
+            <m.div variants={itemVariants} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ p: 3, borderRadius: 4, bgcolor: "white", height: "100%", border: "1px solid #eee", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                 <Typography variant="h6" fontWeight="900" color={COLORS.textDark} align="center" gutterBottom sx={{ borderBottom: "2px dashed #eee", pb: 1.5 }}>
                   💧 Air Mineral
@@ -202,10 +202,10 @@ export default function CalculatorPage() {
                   </Box>
                 </Box>
               </Card>
-            </motion.div>
+            </m.div>
 
           </Box>
-        </motion.div>
+        </m.div>
       </Container>
     </Box>
   );
