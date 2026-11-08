@@ -88,7 +88,11 @@ function Shell({ children, centered = false, pt = 4, pb = 6 }) {
     <MotionConfig reducedMotion="user">
       <Box
         sx={{
-          minHeight: "100vh", "@supports (height: 100dvh)": { minHeight: "100dvh" }, bgcolor: COLORS.background, pt, pb,
+          minHeight: "100vh", 
+          "@supports (height: 100dvh)": { minHeight: "100dvh" }, 
+          bgcolor: COLORS.background, 
+          pt, pb,
+          overflowX: "hidden", // <-- TAMBAHAN: Mencegah layar tergeser ke kiri-kanan
           ...(centered ? { display: "flex", alignItems: "center" } : {}),
         }}
       >
@@ -121,7 +125,7 @@ function StatusStepper({ aktif }) {
               >
                 {selesai ? <Check sx={{ fontSize: 18 }} /> : i + 1}
               </Box>
-              <Typography variant="caption" sx={{ fontWeight: sekarang ? 800 : 600, color: sekarang ? COLORS.textDark : "#616161" }}>
+              <Typography variant="caption" sx={{ fontWeight: sekarang ? 700 : 600, color: sekarang ? COLORS.textDark : "#616161" }}>
                 {label}
               </Typography>
             </Box>
@@ -158,7 +162,7 @@ function RincianPesanan({ items = [], total }) {
             <Typography fontWeight={700}>
               {item.type === "drink" ? item.nama : `${item.qty}x ${item.nama}`}
             </Typography>
-            <Typography fontWeight={700} sx={{ whiteSpace: "nowrap" }}>{formatRupiah(item.harga)}</Typography>
+            <Typography fontWeight={700} sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{formatRupiah(item.harga)}</Typography>
           </Box>
           <ChipTambahan item={item} />
         </Box>
@@ -166,7 +170,7 @@ function RincianPesanan({ items = [], total }) {
       <Divider sx={{ my: 1.5 }} />
       <Box display="flex" justifyContent="space-between" alignItems="center">
         <Typography fontWeight={800}>Total</Typography>
-        <Typography variant="h6" fontWeight={900} color={COLORS.primary}>{formatRupiah(total)}</Typography>
+        <Typography variant="h6" fontWeight={900} color={COLORS.primary} sx={{ fontVariantNumeric: "tabular-nums" }}>{formatRupiah(total)}</Typography>
       </Box>
     </Box>
   );
@@ -602,7 +606,7 @@ export default function CustomerPage() {
     return (
       <Shell centered pt={4} pb={4}>
         <Container maxWidth="sm">
-          <m initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
+          <m.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
             <Paper elevation={4} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 6, bgcolor: "white", textAlign: "center", borderTop: `8px solid ${COLORS.success}` }}>
               <StatusStepper aktif={3} />
               <CheckCircleOutline sx={{ fontSize: 72, color: COLORS.success, mb: 1 }} />
@@ -630,7 +634,7 @@ export default function CustomerPage() {
                 PESAN LAGI
               </Button>
             </Paper>
-          </m>
+          </m.div>
         </Container>
       </Shell>
     );
@@ -842,7 +846,7 @@ export default function CustomerPage() {
         <m.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
           <Box sx={{ textAlign: "center", mb: 3 }}>
             <Storefront sx={{ fontSize: 56, color: COLORS.primary }} />
-            <Typography variant="h4" fontWeight={900} color={COLORS.info} sx={{ fontSize: { xs: "1.8rem", sm: "2.125rem" } }}>IAN TAKOYAKI</Typography>
+            <Typography variant="h4" fontWeight={900} color={COLORS.info} sx={{ fontSize: { xs: "1.8rem", sm: "2.125rem" }, letterSpacing: "-0.5px" }}>IAN TAKOYAKI</Typography>
             <Typography variant="body2" fontWeight={700} color="text.secondary">Pesan langsung dari HP kamu!</Typography>
             <Chip
               size="small" icon={<AccessTime />}
@@ -1088,10 +1092,16 @@ export default function CustomerPage() {
             <LocalDrink sx={{ color: COLORS.info }} />
             <Typography variant="h6" fontWeight={800} color={COLORS.info}>Menu minuman</Typography>
           </Box>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Box>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} gap={2}>
+            <Box sx={{ flex: 1 }}>
               <Typography fontWeight={800}>Air mineral</Typography>
-              <Typography variant="body2" color="text.secondary" fontWeight={600}>Dingin atau biasa, Rp 5.000 per botol</Typography>
+              <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                Dingin atau biasa,{" "}
+                <Box component="span" sx={{ whiteSpace: "nowrap" }}>
+                  Rp 5.000
+                </Box>{" "}
+                per botol
+              </Typography>
             </Box>
             <Box display="flex" alignItems="center" gap={1} sx={{ border: `1px solid ${COLORS.info}`, borderRadius: 3, p: 0.5 }}>
               <IconButton aria-label="Kurangi jumlah" size="small" onClick={() => { setQtyAir(Math.max(0, qtyAir - 1)); playTone("click"); }} sx={{ color: COLORS.info }}>
@@ -1129,23 +1139,46 @@ export default function CustomerPage() {
                       initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }}
                     >
                       <Box sx={{ py: 1.5, borderBottom: "1px dashed #ddd" }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" columnGap={1}>
-                          <Typography fontWeight={800} sx={{ flex: "1 1 130px", minWidth: 0, pt: 0.5, overflowWrap: "break-word" }}>{item.nama}</Typography>
-                          <Box display="flex" alignItems="center" gap={0.25} sx={{ flexShrink: 0, ml: "auto" }}>
-                            <Typography fontWeight={800} sx={{ whiteSpace: "nowrap", mr: 0.5 }}>{formatRupiah(item.harga)}</Typography>
+                        
+                        {/* BARIS 1: Nama, Harga, dan Tombol (sejajar horizontal) */}
+                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
+                          
+                          {/* Nama Pesanan (Fleksibel, bisa multi-baris) */}
+                          <Typography fontWeight={800} sx={{ flex: 1, minWidth: 0, pt: 0.5, overflowWrap: "break-word" }}>
+                            {item.nama}
+                          </Typography>
+                          
+                          {/* Harga & Tombol Aksi (Tetap di kanan, tidak bergeser) */}
+                          <Box display="flex" alignItems="center" gap={0.25} sx={{ flexShrink: 0, pt: 0.25 }}>
+                            
+                            {/* Harga (Rata kiri, lebar dikunci) */}
+                            <Typography 
+                              fontWeight={800} 
+                              sx={{ width: 90, textAlign: "left", whiteSpace: "nowrap", mr: 0.5, fontVariantNumeric: "tabular-nums" }}
+                            >
+                              {formatRupiah(item.harga)}
+                            </Typography>
+                            
+                            {/* Tombol Aksi */}
                             {item.type === "food" ? (
                               <IconButton aria-label="Tambah porsi yang sama" onClick={() => duplicateItem(item)} sx={{ color: COLORS.info, p: 1 }}>
                                 <ContentCopy fontSize="small" />
                               </IconButton>
                             ) : (
-                              <Box sx={{ width: 36, flexShrink: 0 }} aria-hidden="true" />
+                              <Box sx={{ width: 36 }} aria-hidden="true" />
                             )}
                             <IconButton aria-label="Hapus dari keranjang" onClick={() => removeFromCart(item.id)} sx={{ color: "#c62828", p: 1 }}>
                               <Delete fontSize="small" />
                             </IconButton>
+                            
                           </Box>
                         </Box>
-                        <ChipTambahan item={item} />
+
+                        {/* BARIS 2: Chip Tambahan (Full width, membungkus rapi ke bawah) */}
+                        <Box sx={{ width: "100%", mt: 0.5 }}>
+                          <ChipTambahan item={item} />
+                        </Box>
+                        
                       </Box>
                     </m.div>
                   ))}
@@ -1195,7 +1228,7 @@ export default function CustomerPage() {
                     </Typography>
                     <m.span
                       key={totalCartPrice} initial={{ scale: 1.2 }} animate={{ scale: 1 }}
-                      style={{ display: "inline-block", fontWeight: 900, fontSize: "clamp(1.05rem, 5vw, 1.4rem)", color: COLORS.primary, whiteSpace: "nowrap" }}
+                      style={{ display: "inline-block", fontWeight: 900, fontSize: "clamp(1.05rem, 5vw, 1.4rem)", color: COLORS.primary, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}
                     >
                       {formatRupiah(totalCartPrice)}
                     </m.span>
