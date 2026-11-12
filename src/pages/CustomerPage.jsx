@@ -158,11 +158,20 @@ function RincianPesanan({ items = [], total }) {
       <Typography variant="subtitle1" fontWeight={800} gutterBottom>🧾 Rincian pesanan</Typography>
       {items.map((item, idx) => (
         <Box key={idx} sx={{ py: 1.5, borderBottom: idx !== items.length - 1 ? "1px dashed #ddd" : "none" }}>
-          <Box display="flex" justifyContent="space-between" gap={1}>
-            <Typography fontWeight={700}>
+          <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
+  
+            {/* Nama (Fleksibel mengisi ruang) */}
+            <Typography fontWeight={700} sx={{ flex: 1, minWidth: 0, overflowWrap: "break-word" }}>
               {item.type === "drink" ? item.nama : `${item.qty}x ${item.nama}`}
             </Typography>
-            <Typography fontWeight={700} sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{formatRupiah(item.harga)}</Typography>
+  
+            {/* Harga (Dikunci 90px & Rata Kiri) */}
+            <Box sx={{ width: 90, flexShrink: 0 }}>
+              <Typography fontWeight={700} sx={{ textAlign: "left", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                {formatRupiah(item.harga)}
+              </Typography>
+            </Box>
+
           </Box>
           <ChipTambahan item={item} />
         </Box>
@@ -1267,13 +1276,22 @@ export default function CustomerPage() {
           </Box>
           <RincianPesanan items={cart} total={totalCartPrice} />
           <Box display="flex" gap={1.5} sx={{ mt: 3 }}>
-            <Button fullWidth variant="outlined" onClick={() => setConfirmOpen(false)} disabled={isSending} sx={{ py: 1.5, borderRadius: 3, fontWeight: 800 }}>
+            <Button 
+              fullWidth variant="outlined" onClick={() => setConfirmOpen(false)} disabled={isSending} 
+              // Kurangi py sedikit dan kecilkan font
+              sx={{ py: 1.8, borderRadius: 3, fontWeight: 800, fontSize: { xs: "0.85rem", sm: "0.95rem" } }}
+            >
               KEMBALI
             </Button>
             <Button
               fullWidth variant="contained" onClick={kirimPesanan} disabled={isSending}
               startIcon={isSending ? <CircularProgress size={18} color="inherit" /> : <Send />}
-              sx={{ py: 1.5, borderRadius: 3, fontWeight: 800, bgcolor: COLORS.primary, "&:hover": { bgcolor: "#b71c1c" } }}
+              // Kurangi py, kecilkan font, cegah kata terputus (nowrap)
+              sx={{ 
+                py: 1.8, borderRadius: 3, fontWeight: 800, fontSize: { xs: "0.85rem", sm: "0.95rem" }, 
+                bgcolor: COLORS.primary, "&:hover": { bgcolor: "#b71c1c" },
+                whiteSpace: "nowrap" 
+              }}
             >
               {isSending ? "MENGIRIM..." : "KIRIM PESANAN"}
             </Button>
