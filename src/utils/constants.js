@@ -3,7 +3,7 @@ export const COLORS = {
   secondary: "#f57c00",
   background: "#fff3e0",
   cardSelected: "#ffffff",
-  textDark: "#0a0a0a",
+  textDark: "#2D2420",
   textGrey: "#424242",
   success: "#2e7d32",
   warning: "#ed6c02",

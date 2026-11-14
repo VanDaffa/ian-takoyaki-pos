@@ -28,7 +28,7 @@ function SisaWaktuChip({ createdAt, batasMenit = 15 }) {
 
   useEffect(() => {
     const tick = () => setNow(Date.now());
-    const id = setInterval(tick, 15000);
+    const id = setInterval(tick, 1000);
     document.addEventListener("visibilitychange", tick);
     return () => {
       clearInterval(id);
@@ -38,17 +38,25 @@ function SisaWaktuChip({ createdAt, batasMenit = 15 }) {
 
   if (!createdAt || typeof createdAt.toMillis !== "function") return null;
 
-  const sisaDetik = Math.round((createdAt.toMillis() + batasMenit * 60000 - now) / 1000);
-  const sisaMenit = Math.ceil(sisaDetik / 60);
+  const sisaDetik = Math.max(0, Math.round((createdAt.toMillis() + batasMenit * 60000 - now) / 1000));
+  const menit = Math.floor(sisaDetik / 60);
+  const detik = sisaDetik % 60;
   const label =
-    sisaDetik <= 0 ? "Kedaluwarsa" : sisaDetik < 60 ? "Sisa: <1 mnt" : `Sisa: ${sisaMenit} mnt`;
+    sisaDetik <= 0
+      ? "Kedaluwarsa"
+      : `Sisa: ${String(menit).padStart(2, "0")}:${String(detik).padStart(2, "0")}`;
 
   return (
     <Chip
       label={label}
       size="small"
-      color={sisaMenit <= 5 ? "error" : "warning"}
-      sx={{ fontWeight: "bold", height: "20px", fontSize: "0.75rem" }}
+      color={sisaDetik <= 300 ? "error" : "warning"}
+      sx={{
+        fontWeight: 800,
+        height: "24px",
+        fontSize: "0.78rem",
+        fontVariantNumeric: "tabular-nums",
+      }}
     />
   );
 }
@@ -320,6 +328,7 @@ export default function CashierPage() {
   });
 
   const toggleStatusMasakItem = async (item) => {
+    if (item.noAntrian === "Online") return;
     playTone("click");
     const orderGroup = masterQueue.filter(p => p.docId === item.docId);
     const updatedItems = orderGroup.map(p => { const isTarget = p.id === item.id; return { ...p, statusMasak: isTarget ? (p.statusMasak === "selesai" ? "dibuat" : "selesai") : p.statusMasak }; });
@@ -350,7 +359,9 @@ export default function CashierPage() {
   const requestFinishOrder = (noAntrian, docId) => {
     const groupItems = masterQueue.filter((p) => p.docId === docId);
     const isLunas = groupItems.every((p) => p.statusBayar === "lunas");
+    const isCooked = groupItems.length > 0 && groupItems.every((p) => p.statusMasak === "selesai");
     if (!isLunas) { setSnackbar({ open: true, message: "⚠️ Tagih dulu bos! Belum Lunas.", severity: "warning" }); playTone("delete"); return; }
+    if (!isCooked) { setSnackbar({ open: true, message: "⚠️ Pastikan semua item sudah dicentang selesai!", severity: "warning" }); playTone("delete"); return; }
     setConfirmDialog({ open: true, noAntrian: noAntrian, docId: docId });
   };
 
@@ -383,10 +394,21 @@ export default function CashierPage() {
     if (!sauses || sauses.length === 0) return null;
     const isFullTeam = sauses.length === SAUS_LIST.length;
     const allSeparated = sauses.every((s) => sausesPisah && sausesPisah.includes(s));
-    if (isFullTeam && allSeparated) return <Chip key="all-pisah" label="SEMUA SAUS DIPISAH" size="small" sx={{ bgcolor: COLORS.info, color: "white", fontWeight: "bold", fontSize: "0.75rem", height: "24px" }} />;
+    if (isFullTeam && allSeparated) {
+      return <Chip key="all-pisah" label="SEMUA SAUS DIPISAH" size="small" sx={{ bgcolor: COLORS.info, color: "white", fontWeight: 800, fontSize: "0.78rem", height: "26px" }} />;
+    }
     return sauses.map((saus) => {
       const isPisah = sausesPisah && sausesPisah.includes(saus);
-      return <Chip key={saus} label={`${saus}${isPisah ? " (PISAH)" : ""}`} size="small" color={getSauceColor(saus)} variant={isPisah ? "outlined" : "filled"} sx={{ fontWeight: "bold", fontSize: "0.7rem", height: "24px" }} />;
+      return (
+        <Chip
+          key={saus}
+          label={`${saus}${isPisah ? " (PISAH)" : ""}`}
+          size="small"
+          color={getSauceColor(saus)}
+          variant={isPisah ? "outlined" : "filled"}
+          sx={{ fontWeight: 700, fontSize: "0.78rem", height: "26px" }}
+        />
+      );
     });
   };
 
@@ -398,34 +420,90 @@ export default function CashierPage() {
       <CssBaseline />
 
       <Snackbar open={snackbar.open} autoHideDuration={2000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
-        <Alert severity={snackbar.severity} variant="filled" sx={{ width: "100%", fontWeight: "bold" }}>{snackbar.message}</Alert>
+        <Alert
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{
+            width: "100%",
+            fontWeight: 700,
+            fontSize: "0.95rem",
+            borderRadius: 3,
+            alignItems: "center",
+            boxShadow: "0 6px 20px rgba(45, 36, 32, 0.18)"
+          }}
+        >
+          {snackbar.message}
+        </Alert>
       </Snackbar>
 
-      <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog({ open: false, noAntrian: null, docId: null })} PaperProps={{ sx: { borderRadius: 4, p: 1, minWidth: "300px" } }}>
-        <DialogTitle sx={{ fontWeight: "bold", textAlign: "center", fontSize: "1.2rem", color: COLORS.primary }}>Selesaikan Pesanan #{confirmDialog.noAntrian}?</DialogTitle>
-        <DialogContent><DialogContentText sx={{ textAlign: "center", fontWeight: "bold" }}>Pastikan pesanan sudah diberikan ke pelanggan.</DialogContentText></DialogContent>
-        <DialogActions sx={{ justifyContent: "center", gap: 2, mb: 1 }}>
-          <Button onClick={() => setConfirmDialog({ open: false, noAntrian: null, docId: null })} color="inherit" variant="outlined" sx={{ borderRadius: 3, px: 3, fontWeight: "bold", textTransform: "none" }}>Batal</Button>
-          <Button onClick={executeFinishOrder} variant="contained" autoFocus sx={{ borderRadius: 3, px: 4, bgcolor: COLORS.secondary, fontWeight: "bold", textTransform: "none" }}>Ya, Selesai</Button>
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, noAntrian: null, docId: null })}
+        PaperProps={{ sx: { borderRadius: 4, p: 1.5, minWidth: { xs: "310px", sm: "360px" } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, textAlign: "center", fontSize: "1.3rem", color: COLORS.primary, letterSpacing: "-0.3px", pb: 1 }}>
+          Selesaikan Pesanan #{confirmDialog.noAntrian}?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ textAlign: "center", fontWeight: 600, fontSize: "0.98rem", color: "#3B302A", lineHeight: 1.5 }}>
+            Pastikan pesanan sudah diberikan ke pelanggan.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "center", gap: 1.5, mb: 1, px: 2 }}>
+          <Button
+            onClick={() => setConfirmDialog({ open: false, noAntrian: null, docId: null })}
+            variant="outlined"
+            sx={{ borderRadius: 2.5, px: 3, py: 1, color: "#3B302A", borderColor: "#d7ccc8", fontWeight: 800, fontSize: "0.95rem", textTransform: "none", "&:hover": { borderColor: "#2D2420", bgcolor: "rgba(45, 36, 32, 0.04)" } }}
+          >
+            Batal
+          </Button>
+          <Button
+            onClick={executeFinishOrder}
+            variant="contained"
+            autoFocus
+            sx={{ borderRadius: 2.5, px: 3.5, py: 1, bgcolor: COLORS.secondary, fontWeight: 800, fontSize: "0.95rem", textTransform: "none", "&:hover": { bgcolor: "#e65100" } }}
+          >
+            Ya, Selesai
+          </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={cancelDialog.open} onClose={() => setCancelDialog({ open: false, noAntrian: null, docId: null, hasCookedItems: false })} PaperProps={{ sx: { borderRadius: 4, p: 1, minWidth: "300px" } }}>
-        <DialogTitle sx={{ fontWeight: "bold", textAlign: "center", fontSize: "1.2rem", color: "error.main" }}>Batalkan Pesanan {cancelDialog.noAntrian === "Online" ? "Online" : "#" + cancelDialog.noAntrian}?</DialogTitle>
+      <Dialog
+        open={cancelDialog.open}
+        onClose={() => setCancelDialog({ open: false, noAntrian: null, docId: null, hasCookedItems: false })}
+        PaperProps={{ sx: { borderRadius: 4, p: 1.5, minWidth: { xs: "310px", sm: "360px" } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, textAlign: "center", fontSize: "1.3rem", color: "error.main", letterSpacing: "-0.3px", pb: 1 }}>
+          Batalkan Pesanan {cancelDialog.noAntrian === "Online" ? "Online" : "#" + cancelDialog.noAntrian}?
+        </DialogTitle>
         <DialogContent>
           {cancelDialog.hasCookedItems ? (
-            <DialogContentText sx={{ textAlign: "center", fontWeight: "bold", color: "error.main" }}>
+            <DialogContentText sx={{ textAlign: "center", fontWeight: 700, fontSize: "0.98rem", color: "error.main", lineHeight: 1.5 }}>
               ⚠️ PERINGATAN: Beberapa item sudah dimasak! Makanan berpotensi terbuang. Tetap batalkan transaksi?
             </DialogContentText>
           ) : (
-            <DialogContentText sx={{ textAlign: "center", fontWeight: "bold" }}>
+            <DialogContentText sx={{ textAlign: "center", fontWeight: 600, fontSize: "0.98rem", color: "#3B302A", lineHeight: 1.5 }}>
               Apakah Anda yakin ingin membatalkan dan menghapus pesanan ini dari antrean?
             </DialogContentText>
           )}
         </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", gap: 2, mb: 1 }}>
-          <Button onClick={() => setCancelDialog({ open: false, noAntrian: null, docId: null, hasCookedItems: false })} color="inherit" variant="outlined" sx={{ borderRadius: 3, px: 3, fontWeight: "bold", textTransform: "none" }}>Kembali</Button>
-          <Button onClick={executeCancelOrder} variant="contained" color="error" autoFocus sx={{ borderRadius: 3, px: 4, fontWeight: "bold", textTransform: "none" }}>Ya, Batalkan</Button>
+        <DialogActions sx={{ justifyContent: "center", gap: 1.5, mb: 1, px: 2 }}>
+          <Button
+            onClick={() => setCancelDialog({ open: false, noAntrian: null, docId: null, hasCookedItems: false })}
+            variant="outlined"
+            sx={{ borderRadius: 2.5, px: 3, py: 1, color: "#3B302A", borderColor: "#d7ccc8", fontWeight: 800, fontSize: "0.95rem", textTransform: "none", "&:hover": { borderColor: "#2D2420", bgcolor: "rgba(45, 36, 32, 0.04)" } }}
+          >
+            Kembali
+          </Button>
+          <Button
+            onClick={executeCancelOrder}
+            variant="contained"
+            color="error"
+            autoFocus
+            sx={{ borderRadius: 2.5, px: 3.5, py: 1, fontWeight: 800, fontSize: "0.95rem", textTransform: "none" }}
+          >
+            Ya, Batalkan
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -434,33 +512,61 @@ export default function CashierPage() {
         
         {/* PERBAIKAN: Header Diperbarui, Hapus Menu Titik Tiga, Tambah Panah Kembali ke Dashboard */}
         <Box sx={{ p: 2.5, bgcolor: COLORS.primary, color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-          <Typography variant="h5" fontWeight="bold">Daftar Pesanan</Typography>
+          <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: "-0.3px" }}>
+            Daftar Pesanan
+          </Typography>
           <Box display="flex" alignItems="center" gap={1}>
-            <Typography variant="body1" sx={{ bgcolor: "rgba(0,0,0,0.2)", px: 2, py: 0.5, borderRadius: 2, fontWeight: "bold" }}>
+            <Typography variant="body2" sx={{ bgcolor: "rgba(0,0,0,0.2)", px: 1.75, py: 0.6, borderRadius: 2, fontWeight: 800, fontSize: "0.9rem", fontVariantNumeric: "tabular-nums" }}>
               Antrean: {sortedGroups.length}
             </Typography>
-            <IconButton onClick={() => { playTone("click"); navigate("/dashboard"); }} color="inherit" size="small" sx={{ bgcolor: "rgba(255,255,255,0.15)", borderRadius: 2, px: 1.5, gap: 0.5 }}>
-              <ArrowBack fontSize="small" /> <Typography variant="caption" fontWeight="bold">Tutup</Typography>
+            <IconButton onClick={() => { playTone("click"); navigate("/dashboard"); }} color="inherit" size="small" sx={{ bgcolor: "rgba(255,255,255,0.15)", borderRadius: 2, px: 1.5, py: 0.6, gap: 0.5, "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
+              <ArrowBack fontSize="small" />
+              <Typography variant="body2" fontWeight={800} sx={{ fontSize: "0.85rem" }}>Tutup</Typography>
             </IconButton>
           </Box>
         </Box>
         
         <Box sx={{ flexGrow: 1, overflowY: "auto", p: 2, bgcolor: "#fff3e0" }}>
           {sortedGroups.length === 0 ? (
-            <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" opacity={0.6}>
-              <Restaurant sx={{ fontSize: 100, mb: 2, color: COLORS.secondary }} />
-              <Typography variant="h5" color={COLORS.primary} fontWeight="bold">Dapur Kosong</Typography>
-              <Typography variant="h6" color="text.secondary">Siap menerima pesanan baru!</Typography>
-            </Box>
-          ) : (
+              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" px={3} textAlign="center">
+                <Box
+                  sx={{
+                    width: 112,
+                    height: 112,
+                    borderRadius: "50%",
+                    bgcolor: "rgba(230, 81, 0, 0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    mb: 2.5
+                  }}
+                >
+                  <Restaurant sx={{ fontSize: 64, color: COLORS.secondary, opacity: 0.85 }} />
+                </Box>
+                <Typography
+                  variant="h5"
+                  fontWeight={900}
+                  color="#2D2420"
+                  sx={{ fontSize: "1.45rem", letterSpacing: "-0.4px", mb: 0.75 }}
+                >
+                  Pesanan masih Kosong
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{ color: "#6E5D54", fontWeight: 600, fontSize: "1rem" }}
+                >
+                  Siap menerima pesanan baru!
+                </Typography>
+              </Box>
+            ) : (
             <Stack spacing={2} component={m.div} layout>
               <AnimatePresence>
                 {sortedGroups.map((group) => {
                   const isAllLunas = group.items.every((i) => i.statusBayar === "lunas");
                   const isAllCooked = group.items.length > 0 && group.items.every((i) => i.statusMasak === "selesai");
-                  
+
                   const showEditBtn = !isAllLunas && isShopOpen && !isAllCooked;
-                  const showSelesaiBtn = isAllLunas;
+                  const showSelesaiBtn = isAllLunas && isAllCooked;
 
                   const isExpanded = expandedAntrian === group.docId;
                   const isOnlineOrder = group.noAntrian === "Online";
@@ -479,30 +585,54 @@ export default function CashierPage() {
                         pointerEvents: isAnotherGroupBeingEdited ? "none" : "auto"
                       }}>
                         <CardActionArea onClick={() => setExpandedAntrian(isExpanded ? null : group.docId)} sx={{ p: 2.5 }}>
-                          <Box display="flex" justifyContent="space-between" alignItems="center">
-                            <Box>
-                              <Box display="flex" alignItems="center" gap={1.5} mb={0.5}>
-                                <Chip label={isOnlineOrder ? "ONLINE" : "#" + group.noAntrian} color={isOnlineOrder ? "info" : "primary"} sx={{ fontWeight: "bold", fontSize: "1.1rem", height: "32px" }} />
-                                <Typography variant="h5" fontWeight="bold" color={COLORS.textDark}>{group.namaPemesan}</Typography>
-                                {isThisGroupBeingEdited && <Chip label="SEDANG DIUBAH ✏️" size="small" sx={{ bgcolor: "orange", color: "white", fontWeight: "bold" }} />}
+                          <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Box display="flex" alignItems="center" flexWrap="wrap" gap={1.25} mb={0.75}>
+                                <Chip
+                                  label={isOnlineOrder ? "ONLINE" : "#" + group.noAntrian}
+                                  color={isOnlineOrder ? "info" : "primary"}
+                                  sx={{ fontWeight: 800, fontSize: "1.05rem", height: "34px", letterSpacing: "0.2px" }}
+                                />
+                                <Typography variant="h5" fontWeight={800} color="#2D2420" sx={{ letterSpacing: "-0.3px", lineHeight: 1.2 }}>
+                                  {group.namaPemesan}
+                                </Typography>
+                                {isThisGroupBeingEdited && (
+                                  <Chip label="SEDANG DIUBAH ✏️" size="small" sx={{ bgcolor: "orange", color: "white", fontWeight: 800, fontSize: "0.75rem" }} />
+                                )}
                               </Box>
                               
-                              <Box display="flex" alignItems="center" gap={1}>
-                                <Typography variant="body1" color={COLORS.textGrey} fontWeight="bold">{group.items.length} Item • {group.jamMasuk}</Typography>
+                              <Box display="flex" alignItems="center" flexWrap="wrap" gap={1}>
+                                <Typography variant="body2" sx={{ color: "#6E5D54", fontWeight: 600, fontSize: "0.9rem" }}>
+                                  {group.items.length} Item • {group.jamMasuk}
+                                </Typography>
                                 {isOnlineOrder && <SisaWaktuChip createdAt={group.createdAt} />}
                               </Box>
                             </Box>
-                            <Box textAlign="right">
-                              <Typography variant="h5" fontWeight="bold" color={COLORS.primary}>Rp {group.totalTagihan.toLocaleString()}</Typography>
-                              {isAllLunas && !isOnlineOrder && <Typography variant="body2" fontWeight="bold" color={COLORS.success}>LUNAS ✅</Typography>}
-                              {isOnlineOrder && <Typography variant="body2" fontWeight="bold" color={COLORS.info}>Menunggu Konfirmasi</Typography>}
+
+                            <Box textAlign="right" sx={{ flexShrink: 0 }}>
+                              <Typography variant="h5" fontWeight={900} color={COLORS.primary} sx={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.5px", whiteSpace: "nowrap" }}>
+                                Rp {group.totalTagihan.toLocaleString()}
+                              </Typography>
+                              {isAllLunas && !isOnlineOrder && (
+                                <Typography variant="caption" display="block" fontWeight={800} color={COLORS.success} sx={{ fontSize: "0.82rem", mt: 0.25 }}>
+                                  LUNAS ✅
+                                </Typography>
+                              )}
+                              {isOnlineOrder && (
+                                <Typography variant="caption" display="block" fontWeight={800} color={COLORS.info} sx={{ fontSize: "0.82rem", mt: 0.25 }}>
+                                  Menunggu Konfirmasi
+                                </Typography>
+                              )}
                             </Box>
                           </Box>
+
                           {!isExpanded && (
-                            <Box sx={{ mt: 1.5, bgcolor: "rgba(0,0,0,0.04)", p: 1, borderRadius: 2 }}>
+                            <Box sx={{ mt: 1.5, bgcolor: "rgba(45, 36, 32, 0.04)", p: 1.25, borderRadius: 2 }}>
                               {group.items.map((item, idx) => (
-                                <Box key={idx} sx={{ mb: 0.5 }}>
-                                  <Typography variant="body2" color="text.primary" sx={{ fontWeight: 600, fontSize: "0.9rem", lineHeight: 1.3 }}>• <b>{item.qty}x</b> {item.nama}</Typography>
+                                <Box key={idx} sx={{ mb: idx !== group.items.length - 1 ? 0.5 : 0 }}>
+                                  <Typography variant="body2" sx={{ color: "#3B302A", fontWeight: 600, fontSize: "0.92rem", lineHeight: 1.35 }}>
+                                    • <Box component="span" sx={{ fontWeight: 800, color: "#2D2420" }}>{item.qty}x</Box> {item.nama}
+                                  </Typography>
                                 </Box>
                               ))}
                             </Box>
@@ -512,32 +642,69 @@ export default function CashierPage() {
                         <Collapse in={isExpanded} unmountOnExit>
                           <Box sx={{ bgcolor: "#fff" }}>
                             {group.items.map((item) => (
-                              <Box key={item.id} sx={{ p: 2, borderTop: "1px solid #eee", display: "flex", justifyContent: "space-between", bgcolor: item.statusMasak === "selesai" ? "#f1f8e9" : "white" }}>
-                                <Box sx={{ flexGrow: 1 }}>
-                                  <Typography variant="h6" fontWeight="bold" sx={{ fontSize: "1.15rem", textDecoration: item.statusMasak === "selesai" ? "line-through" : "none", color: item.statusMasak === "selesai" ? "grey" : "black", mb: 0.5 }}>{item.nama}</Typography>
+                              <Box key={item.id} sx={{ p: 2, borderTop: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5, bgcolor: item.statusMasak === "selesai" ? "#f1f8e9" : "white" }}>
+                                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                  <Typography
+                                    variant="h6"
+                                    fontWeight={900}
+                                    sx={{
+                                      fontSize: "1.25rem",
+                                      lineHeight: 1.25,
+                                      letterSpacing: "-0.3px",
+                                      textDecoration: item.statusMasak === "selesai" ? "line-through" : "none",
+                                      color: item.statusMasak === "selesai" ? "#9e9e9e" : "#2D2420",
+                                      mb: 1
+                                    }}
+                                  >
+                                    {item.nama}
+                                  </Typography>
                                   {item.type === "food" && (
-                                    <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
-                                      {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ bgcolor: COLORS.warning, color: "white", fontWeight: "bold", fontSize: "0.7rem", height: "24px" }} />}
-                                      {(!item.sauses || item.sauses.length === 0) && <Chip label="Tanpa Saus" size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: "24px", color: "text.secondary", borderColor: "#ddd" }} />}
+                                    <Box display="flex" flexWrap="wrap" gap={0.75}>
+                                      {item.katsuobushi && (
+                                        <Chip
+                                          label="Katsuobushi"
+                                          size="small"
+                                          sx={{ bgcolor: COLORS.warning, color: "white", fontWeight: 700, fontSize: "0.74rem", height: "24px" }}
+                                        />
+                                      )}
+                                      {(!item.sauses || item.sauses.length === 0) && (
+                                        <Chip
+                                          label="Tanpa Saus"
+                                          size="small"
+                                          variant="outlined"
+                                          sx={{ fontWeight: 600, fontSize: "0.74rem", height: "24px", color: "#6E5D54", borderColor: "#d7ccc8" }}
+                                        />
+                                      )}
                                       {renderSauceChips(item.sauses, item.sausesPisah)}
                                     </Box>
                                   )}
                                 </Box>
                                 <Box display="flex" gap={1} alignItems="center">
-                                  <IconButton onClick={() => toggleStatusMasakItem(item)} color={item.statusMasak === "selesai" ? "success" : "default"}><CheckCircle sx={{ fontSize: 32 }} /></IconButton>
+                                  <IconButton
+                                    onClick={() => toggleStatusMasakItem(item)}
+                                    disabled={isOnlineOrder}
+                                    color={item.statusMasak === "selesai" ? "success" : "default"}
+                                    sx={{ opacity: isOnlineOrder ? 0.3 : 1 }}
+                                  >
+                                    <CheckCircle sx={{ fontSize: 32 }} />
+                                  </IconButton>
                                 </Box>
                               </Box>
                             ))}
                             
                             <Box sx={{ p: 2, bgcolor: "#fafafa", borderTop: "2px dashed #eee", display: "flex", flexDirection: "column", gap: 1 }}>
                               {isThisGroupBeingEdited ? (
-                                <Typography variant="subtitle1" color="warning.main" fontWeight="bold" sx={{ width: "100%", textAlign: "center", py: 1.5, bgcolor: "#fff3e0", borderRadius: 2 }}>
+                                <Typography variant="subtitle1" color="warning.main" fontWeight={800} sx={{ width: "100%", textAlign: "center", py: 1.5, bgcolor: "#fff3e0", borderRadius: 2 }}>
                                   ✏️ Selesaikan perubahan pesanan ini di Keranjang Kanan 👉
                                 </Typography>
                               ) : isOnlineOrder ? (
                                 <Box display="flex" gap={1}>
-                                  <Button fullWidth variant="outlined" color="error" size="large" onClick={() => requestCancelOrder(group.noAntrian, group.docId)} startIcon={<Delete />} sx={{ fontWeight: "bold" }}>TOLAK PESANAN</Button>
-                                  <Button fullWidth variant="contained" size="large" color="info" onClick={async () => { playTone("success"); await updateDoc(doc(db, "orders", group.docId), { noAntrian: nomorAntrian }); setNomorAntrian(prev => prev + 1); setSnackbar({ open: true, message: `Pesanan diterima sebagai Antrean #${nomorAntrian}! 🐙`, severity: "success" }); }} sx={{ fontWeight: "bold" }}>TERIMA PESANAN</Button>
+                                  <Button fullWidth variant="outlined" color="error" size="large" onClick={() => requestCancelOrder(group.noAntrian, group.docId)} startIcon={<Delete />} sx={{ fontWeight: 800, fontSize: "0.95rem", borderRadius: 2.5, py: 1.1 }}>
+                                    TOLAK PESANAN
+                                  </Button>
+                                  <Button fullWidth variant="contained" size="large" color="info" onClick={async () => { playTone("success"); await updateDoc(doc(db, "orders", group.docId), { noAntrian: nomorAntrian }); setNomorAntrian(prev => prev + 1); setSnackbar({ open: true, message: `Pesanan diterima sebagai Antrean #${nomorAntrian}! 🐙`, severity: "success" }); }} sx={{ fontWeight: 800, fontSize: "0.95rem", borderRadius: 2.5, py: 1.1 }}>
+                                    TERIMA PESANAN
+                                  </Button>
                                 </Box>
                               ) : (
                                 <Box display="flex" flexDirection="column" gap={1} width="100%" component={m.div} layout>
@@ -545,23 +712,31 @@ export default function CashierPage() {
                                     <AnimatePresence>
                                       {showEditBtn && (
                                         <m.div key="btn-ubah" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
-                                          <Button fullWidth variant="outlined" size="large" onClick={() => editPesananFullBatch(group.noAntrian, group.namaPemesan, group.docId)} startIcon={<Edit />} sx={{ color: COLORS.textDark, borderColor: COLORS.textDark, fontWeight: "bold" }}>UBAH SEMUA</Button>
+                                          <Button fullWidth variant="outlined" size="large" onClick={() => editPesananFullBatch(group.noAntrian, group.namaPemesan, group.docId)} startIcon={<Edit />} sx={{ color: "#2D2420", borderColor: "#2D2420", fontWeight: 800, fontSize: "0.95rem", borderRadius: 2.5, py: 1.1 }}>
+                                            UBAH SEMUA
+                                          </Button>
                                         </m.div>
                                       )}
                                     </AnimatePresence>
                                     <m.div layout style={{ flex: 1 }}>
-                                      <Button fullWidth variant="outlined" color="error" size="large" onClick={() => requestCancelOrder(group.noAntrian, group.docId)} startIcon={<Delete />} sx={{ fontWeight: "bold" }}>BATALKAN</Button>
+                                      <Button fullWidth variant="outlined" color="error" size="large" onClick={() => requestCancelOrder(group.noAntrian, group.docId)} startIcon={<Delete />} sx={{ fontWeight: 800, fontSize: "0.95rem", borderRadius: 2.5, py: 1.1 }}>
+                                        BATALKAN
+                                      </Button>
                                     </m.div>
                                   </Box>
                                   
                                   <Box display="flex" gap={1} width="100%" component={m.div} layout>
                                     <m.div layout style={{ flex: 1 }}>
-                                      <Button fullWidth variant="contained" size="large" color={isAllLunas ? "success" : "error"} onClick={() => handleBayarLunasGroup(group.noAntrian, group.docId)} startIcon={isAllLunas ? <MoneyOff /> : <AttachMoney />} sx={{ fontSize: "1rem", fontWeight: "bold" }}>{isAllLunas ? "BATAL LUNAS" : "BAYAR SEMUA"}</Button>
+                                      <Button fullWidth variant="contained" size="large" color={isAllLunas ? "success" : "error"} onClick={() => handleBayarLunasGroup(group.noAntrian, group.docId)} startIcon={isAllLunas ? <MoneyOff /> : <AttachMoney />} sx={{ fontSize: "0.95rem", fontWeight: 800, borderRadius: 2.5, py: 1.1 }}>
+                                        {isAllLunas ? "BATAL LUNAS" : "BAYAR SEMUA"}
+                                      </Button>
                                     </m.div>
                                     <AnimatePresence>
                                       {showSelesaiBtn && (
                                         <m.div key="btn-selesai" layout initial={{ opacity: 0, flex: 0 }} animate={{ opacity: 1, flex: 1 }} exit={{ opacity: 0, flex: 0 }} style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
-                                          <Button fullWidth variant="contained" size="large" sx={{ bgcolor: COLORS.secondary, color: "white", fontSize: "1rem", fontWeight: "bold" }} onClick={() => requestFinishOrder(group.noAntrian, group.docId)} startIcon={<Kitchen />}>SELESAI</Button>
+                                          <Button fullWidth variant="contained" size="large" sx={{ bgcolor: COLORS.secondary, color: "white", fontSize: "0.95rem", fontWeight: 800, borderRadius: 2.5, py: 1.1 }} onClick={() => requestFinishOrder(group.noAntrian, group.docId)} startIcon={<Kitchen />}>
+                                            SELESAI
+                                          </Button>
                                         </m.div>
                                       )}
                                     </AnimatePresence>
@@ -583,10 +758,10 @@ export default function CashierPage() {
 
       {/* --- KANAN: INPUT & KERANJANG KASIR --- */}
       <Box sx={{ flexGrow: 1, height: isMobile ? "60%" : "100%", overflowY: "auto", p: isMobile ? 2 : 4, bgcolor: COLORS.background }}>
-        <Typography variant="h5" fontWeight="bold" color={COLORS.textDark} sx={{ mb: 2, display: "flex", alignItems: "center" }}>🐙 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Buat Pesanan Baru"}</Typography>
+        <Typography variant="h5" fontWeight={800} color="#2D2420" sx={{ mb: 2, display: "flex", alignItems: "center", letterSpacing: "-0.3px" }}>🐙 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Buat Pesanan Baru"}</Typography>
         
         {!isShopOpen && (
-          <Alert severity="warning" variant="filled" sx={{ mb: 3, fontWeight: "bold", borderRadius: 3, boxShadow: "0px 4px 10px rgba(0,0,0,0.05)" }}>
+          <Alert severity="warning" variant="filled" sx={{ mb: 3, fontWeight: 700, fontSize: "0.92rem", borderRadius: 3, alignItems: "center", boxShadow: "0px 4px 10px rgba(0,0,0,0.05)" }}>
             ⚠️ KEDAI SEDANG TUTUP! Buka status kedai melalui Halaman Dashboard untuk dapat menginput pesanan secara langsung di kasir.
           </Alert>
         )}
@@ -594,19 +769,23 @@ export default function CashierPage() {
         <Box sx={{ opacity: isShopOpen ? 1 : 0.4, pointerEvents: isShopOpen ? "auto" : "none", transition: "all 0.3s ease" }}>
           
           <Paper elevation={0} sx={{ p: 2.5, mb: 2, borderRadius: 3, borderTop: `4px solid ${COLORS.success}`, bgcolor: "white" }}>
-            <Typography variant="h6" fontWeight="bold" color={COLORS.success} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Person sx={{ mr: 1 }} /> Data Pelanggan</Typography>
+            <Typography variant="h6" fontWeight={800} color={COLORS.success} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Person sx={{ mr: 1 }} /> Data Pelanggan</Typography>
             <TextField fullWidth label="Nama Pelanggan (Opsional)" variant="outlined" value={isGlobalEditMode ? getDisplayNama() : namaPelanggan} onChange={(e) => setNamaPelanggan(e.target.value)} placeholder={`Pelanggan #${getTargetQueueNumber()}`} disabled={isGlobalEditMode} InputLabelProps={{ style: { fontSize: "1.2rem" } }} InputProps={{ style: { fontSize: "1.3rem" } }} />
-            <Typography variant="body2" sx={{ mt: 1, display: "block", color: COLORS.success, fontWeight: "bold" }}>*Mengisi untuk Antrean #{getTargetQueueNumber()}</Typography>
+            <Typography variant="caption" sx={{ mt: 1, display: "block", color: COLORS.success, fontWeight: 600, fontSize: "0.82rem" }}>*Mengisi untuk Antrean #{getTargetQueueNumber()}</Typography>
           </Paper>
 
-          {editingCartId && <Alert severity="info" sx={{ mb: 2, fontWeight: "bold" }} onClose={cancelEditMode}>Sedang mengubah rincian dari Keranjang... (Klik X untuk Batal)</Alert>}
+          {editingCartId && (
+            <Alert severity="info" sx={{ mb: 2, fontWeight: 700, fontSize: "0.92rem", borderRadius: 2.5, alignItems: "center" }} onClose={cancelEditMode}>
+              Sedang mengubah rincian dari Keranjang... (Klik X untuk Batal)
+            </Alert>
+          )}
 
           <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: 4, bgcolor: "white", borderTop: `4px solid ${COLORS.primary}`, opacity: isEditingDrink ? 0.5 : 1, pointerEvents: isEditingDrink ? "none" : "auto" }}>
-            <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} sx={{ display: "flex", alignItems: "center", mb: 2 }}><Restaurant sx={{ mr: 1 }} /> Menu Takoyaki</Typography>
+            <Typography variant="h6" fontWeight={800} color="#2D2420" sx={{ display: "flex", alignItems: "center", mb: 2 }}><Restaurant sx={{ mr: 1 }} /> Menu Takoyaki</Typography>
             
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
               <Box display="flex" alignItems="center" gap={1}>
-                <Typography variant="subtitle1" fontWeight="bold">Racik Isian:</Typography>
+                <Typography variant="subtitle1" fontWeight={800} color="#2D2420">Racik Isian:</Typography>
                 <Chip label={`${totalPilihan}/5`} color={totalPilihan >= 5 ? "error" : "default"} size="small" sx={{ fontWeight: "bold" }} />
               </Box>
               <Box display="flex" alignItems="center" gap={1}>
@@ -623,17 +802,17 @@ export default function CashierPage() {
               {VARIAN_ISIAN.map((item) => (
                 <m.div key={item.id} whileTap={{ scale: 0.95 }} style={{ width: "100%", height: "100%" }}>
                   <Card elevation={0} onClick={(e) => { e.stopPropagation(); toggleIsian(item.id); }} sx={{ bgcolor: isian[item.id] > 0 ? COLORS.cardSelected : "#f5f5f5", border: isian[item.id] > 0 ? `3px solid ${COLORS.primary}` : "1px solid #eee", boxShadow: isian[item.id] > 0 ? "0 4px 12px rgba(211, 47, 47, 0.3)" : "none", borderRadius: 2, cursor: "pointer", height: "60px", width: "100%", display: "flex", justifyContent: "center", alignItems: "center", transition: "0.1s", userSelect: "none", boxSizing: "border-box", px: 1 }}>
-                    <Typography variant="body1" fontWeight="900" align="center" sx={{ color: isian[item.id] > 0 ? COLORS.primary : "#757575", letterSpacing: 0.5, fontSize: "0.85rem", lineHeight: 1.1 }}>{item.label}</Typography>
+                    <Typography variant="body1" fontWeight={800} align="center" sx={{ color: isian[item.id] > 0 ? COLORS.primary : "#3B302A", fontSize: "0.95rem", lineHeight: 1.15 }}>{item.label}</Typography>
                   </Card>
                 </m.div>
               ))}
             </Box>
 
             <Box mb={2}>
-              <FormControlLabel control={<Checkbox checked={pakeKatsuobushi} onChange={(e) => { setPakeKatsuobushi(e.target.checked); playTone("click"); }} color="warning" sx={{ transform: "scale(1.2)", mr: 1 }} />} label={<Typography sx={{ fontSize: "0.9rem", fontWeight: "bold" }}>Topping Katsuobushi</Typography>} sx={{ p: 1, border: "1px solid #ddd", borderRadius: 2, width: "100%", mb: 2, mx: 0 }} />
+              <FormControlLabel control={<Checkbox checked={pakeKatsuobushi} onChange={(e) => { setPakeKatsuobushi(e.target.checked); playTone("click"); }} color="warning" sx={{ transform: "scale(1.2)", mr: 1 }} />} label={<Typography sx={{ fontSize: "0.95rem", fontWeight: 700, color: "#3B302A" }}>Topping Katsuobushi</Typography>} sx={{ p: 1, border: "1px solid #ddd", borderRadius: 2, width: "100%", mb: 2, mx: 0 }} />
               
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                <Typography variant="body2" color="text.secondary" fontWeight="bold">Pilih Saus:</Typography>
+                <Typography variant="subtitle1" fontWeight={800} color="#2D2420">Pilih Saus:</Typography>
                 <Button size="small" variant="outlined" onClick={toggleSemuaSaus} sx={{ fontWeight: "bold", fontSize: "0.8rem", height: "30px", textTransform: "none" }}>
                   {Object.values(sauses).every((val) => val === true) ? "Hapus Semua" : "Pilih Semua"}
                 </Button>
@@ -644,7 +823,7 @@ export default function CashierPage() {
                   <Box key={saus} sx={{ border: sauses[saus] ? `2px solid ${COLORS.primary}` : "1px solid #ddd", borderRadius: 2, p: 0.5, bgcolor: sauses[saus] ? "#ffebee" : "transparent", minHeight: "85px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease", width: "100%", boxSizing: "border-box" }}>
                     <Box display="flex" alignItems="center" justifyContent="center" width="100%">
                       <Checkbox size="small" checked={sauses[saus]} onChange={() => handleSausChange(saus)} sx={{ p: 0, color: COLORS.secondary, "&.Mui-checked": { color: COLORS.primary } }} />
-                      <Typography sx={{ fontSize: "0.8rem", fontWeight: "900", lineHeight: 1.1, textAlign: "center" }}>{saus}</Typography>
+                      <Typography sx={{ fontSize: "0.9rem", fontWeight: 800, color: "#3B302A", lineHeight: 1.15, textAlign: "center" }}>{saus}</Typography>
                     </Box>
                     <AnimatePresence>
                       {sauses[saus] && (
@@ -663,11 +842,11 @@ export default function CashierPage() {
           </Paper>
 
           <Paper elevation={0} sx={{ p: 2, mb: 4, borderRadius: 4, bgcolor: "#e3f2fd", borderTop: `4px solid ${COLORS.info}`, opacity: isEditingFood ? 0.5 : 1, pointerEvents: isEditingFood ? "none" : "auto" }}>
-            <Typography variant="h6" fontWeight="bold" color={COLORS.info} sx={{ display: "flex", alignItems: "center", mb: 2 }}><LocalDrink sx={{ mr: 1 }} /> Menu Minuman</Typography>
+            <Typography variant="h6" fontWeight={800} color={COLORS.info} sx={{ display: "flex", alignItems: "center", mb: 2 }}><LocalDrink sx={{ mr: 1 }} /> Menu Minuman</Typography>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
               <Box>
-                <Typography variant="subtitle1" fontWeight="bold">Air Mineral (Dingin / Biasa)</Typography>
-                <Typography variant="body2" color="text.secondary" fontWeight="bold">Rp 5.000 / botol</Typography>
+                <Typography variant="subtitle1" fontWeight={800} color="#2D2420">Air Mineral (Dingin / Biasa)</Typography>
+                <Typography variant="body2" sx={{ color: "#6E5D54", fontWeight: 600 }}>Rp 5.000 / botol</Typography>
               </Box>
               <Box display="flex" alignItems="center" sx={{ bgcolor: "white", borderRadius: 2, border: `1px solid ${COLORS.info}` }}>
                 <IconButton onClick={() => { setQtyAir(Math.max(0, qtyAir - 1)); playTone("click"); }} disabled={qtyAir === 0}><Remove color="info" /></IconButton>
@@ -681,30 +860,59 @@ export default function CashierPage() {
           </Paper>
 
           {tempCart.length > 0 && (
-            <Paper elevation={3} sx={{ p: 2, borderRadius: 3, bgcolor: "#fffde7", border: "2px dashed orange" }}>
-              <Typography variant="h6" fontWeight="bold" color={COLORS.textDark} gutterBottom>📝 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Keranjang Pesanan"}</Typography>
+            <Paper elevation={3} sx={{ p: 2.5, borderRadius: 3, bgcolor: "#fffde7", border: "2px dashed orange" }}>
+              <Typography variant="h6" fontWeight={800} color="#2D2420" sx={{ letterSpacing: "-0.3px", mb: 1.5 }}>
+                📝 {isGlobalEditMode ? `Ubah Pesanan #${getTargetQueueNumber()}` : "Keranjang Pesanan"}
+              </Typography>
               <List dense sx={{ p: 0, mb: 2 }}>
                 <AnimatePresence>
                   {tempCart.map((item) => (
                     <m.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} style={{ marginBottom: "12px" }}>
-                      <Box sx={{ border: `1px solid ${editingCartId === item.id ? COLORS.info : '#ddd'}`, borderRadius: 2, p: 1.5, bgcolor: editingCartId === item.id ? "#e3f2fd" : "white", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                          <Typography fontWeight="bold" fontSize="1.1rem" sx={{ pr: 2, lineHeight: 1.2 }}>{item.nama}</Typography>
-                          <Typography variant="subtitle1" fontWeight="bold" color={COLORS.primary} sx={{ whiteSpace: "nowrap" }}>Rp {item.harga.toLocaleString()}</Typography>
+                      <Box sx={{ border: `1px solid ${editingCartId === item.id ? COLORS.info : "#ddd"}`, borderRadius: 2.5, p: 1.75, bgcolor: editingCartId === item.id ? "#e3f2fd" : "white", boxShadow: "0 2px 4px rgba(0,0,0,0.04)" }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+                          <Typography
+                            fontWeight={900}
+                            fontSize="1.22rem"
+                            color="#2D2420"
+                            sx={{ lineHeight: 1.25, letterSpacing: "-0.3px" }}
+                          >
+                            {item.nama}
+                          </Typography>
+                          <Typography
+                            fontWeight={900}
+                            fontSize="1.2rem"
+                            color={COLORS.primary}
+                            sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.3px" }}
+                          >
+                            Rp {item.harga.toLocaleString()}
+                          </Typography>
                         </Box>
                         
                         {item.type === "food" && (
-                          <Box sx={{ mt: 0.5 }}>
+                          <Box sx={{ mt: 1.25 }}>
                             <Box display="flex" flexWrap="wrap" gap={0.75}>
-                              {item.katsuobushi && <Chip label="Katsuobushi" size="small" sx={{ bgcolor: COLORS.warning, color: "white", fontWeight: "bold", fontSize: "0.7rem", height: "24px" }} />}
-                              {(!item.sauses || item.sauses.length === 0) && <Chip label="Tanpa Saus" size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: "24px", color: "text.secondary", borderColor: "#ddd" }} />}
+                              {item.katsuobushi && (
+                                <Chip
+                                  label="Katsuobushi"
+                                  size="small"
+                                  sx={{ bgcolor: COLORS.warning, color: "white", fontWeight: 700, fontSize: "0.74rem", height: "24px" }}
+                                />
+                              )}
+                              {(!item.sauses || item.sauses.length === 0) && (
+                                <Chip
+                                  label="Tanpa Saus"
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ fontWeight: 600, fontSize: "0.74rem", height: "24px", color: "#6E5D54", borderColor: "#d7ccc8" }}
+                                />
+                              )}
                               {renderSauceChips(item.sauses, item.sausesPisah)}
                             </Box>
                           </Box>
                         )}
 
                         <Divider sx={{ my: 1.5, borderStyle: "dashed" }} />
-                        <Box display="flex" justifyContent="flex-end" gap={1.5}>
+                        <Box display="flex" justifyContent="flex-end" gap={1.25}>
                           <IconButton onClick={() => loadCartItemToForm(item)} color="primary" sx={{ bgcolor: "#e3f2fd", borderRadius: 2 }}><Edit /></IconButton>
                           <IconButton onClick={() => duplicateItem(item)} color="default" sx={{ bgcolor: "#f5f5f5", borderRadius: 2 }}><ContentCopy /></IconButton>
                           <IconButton color="error" onClick={() => hapusDariTemp(item.id)} sx={{ bgcolor: "#ffebee", borderRadius: 2 }}><Delete /></IconButton>
@@ -714,10 +922,41 @@ export default function CashierPage() {
                   ))}
                 </AnimatePresence>
               </List>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}><Typography variant="h6">Total Draf:</Typography><Typography variant="h4" fontWeight="bold" color={COLORS.primary}>Rp {tempCart.reduce((a, b) => a + b.harga, 0).toLocaleString()}</Typography></Box>
+
+              <Box display="flex" justifyContent="space-between" alignItems="baseline" mb={2} px={0.5}>
+                <Typography variant="h6" fontWeight={800} color="#3B302A">
+                  Total Draf:
+                </Typography>
+                <Typography variant="h4" fontWeight={900} color={COLORS.primary} sx={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.5px" }}>
+                  Rp {tempCart.reduce((a, b) => a + b.harga, 0).toLocaleString()}
+                </Typography>
+              </Box>
+
               <m.div whileTap={{ scale: 0.98 }} style={{ width: "100%" }}>
-                <Button fullWidth variant="contained" size="large" onClick={prosesPesananFinal} startIcon={editingCartId ? <SaveAs sx={{ fontSize: 30 }} /> : <ShoppingBasket sx={{ fontSize: 30 }} />} disabled={!!editingCartId} sx={{ height: "70px", borderRadius: 3, bgcolor: COLORS.textDark, fontSize: "1.3rem", fontWeight: "bold", "&:hover": { bgcolor: "black" } }}>{isGlobalEditMode ? `SIMPAN PERUBAHAN #${getTargetQueueNumber()}` : `PROSES SEMUA & NEXT (#${nomorAntrian})`}</Button>
-                {editingCartId && <Typography variant="caption" color="error" align="center" display="block">Selesaikan perubahan rincian dulu sebelum lanjut.</Typography>}
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={prosesPesananFinal}
+                  startIcon={editingCartId ? <SaveAs sx={{ fontSize: 28 }} /> : <ShoppingBasket sx={{ fontSize: 28 }} />}
+                  disabled={!!editingCartId}
+                  sx={{
+                    height: "64px",
+                    borderRadius: 3,
+                    bgcolor: "#2D2420",
+                    fontSize: "1.15rem",
+                    fontWeight: 800,
+                    letterSpacing: "0.3px",
+                    "&:hover": { bgcolor: "#1C1613" }
+                  }}
+                >
+                  {isGlobalEditMode ? `SIMPAN PERUBAHAN #${getTargetQueueNumber()}` : `PROSES SEMUA & NEXT (#${nomorAntrian})`}
+                </Button>
+                {editingCartId && (
+                  <Typography variant="caption" color="error" align="center" display="block" sx={{ mt: 0.75, fontWeight: 700 }}>
+                    Selesaikan perubahan rincian dulu sebelum lanjut.
+                  </Typography>
+                )}
               </m.div>
               <div ref={bottomRef} />
             </Paper>

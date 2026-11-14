@@ -5,7 +5,7 @@ import {
 } from "@mui/material";
 import { 
   PointOfSale, InsertChartRounded, Storefront, 
-  Logout, AccessTime, WavingHand, Calculate 
+  Logout, WavingHand, Calculate 
 } from "@mui/icons-material";
 import { m } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -17,10 +17,20 @@ import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 import { COLORS } from "../utils/constants";
 import { playTone } from "../utils/soundEngine";
 
+// Komponen Cuaca Ringkas
+import {
+  useWeatherForecast,
+  WeatherCompactTrigger,
+  WeatherExpandedPanel
+} from "../components/WeatherWidget";
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [isShopOpen, setIsShopOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isWeatherExpanded, setIsWeatherExpanded] = useState(false);
+
+  const weather = useWeatherForecast();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -36,7 +46,7 @@ export default function DashboardPage() {
     return () => unsub();
   }, []);
 
-  // Heartbeat (lastActive) sekarang dikirim oleh <ShopHeartbeat /> di App.jsx,
+  // Heartbeat (lastActive) dikirim oleh <ShopHeartbeat /> di App.jsx,
   // supaya tetap jalan saat kasir berpindah ke halaman Kasir, Rekap, atau Kalkulator.
 
   const handleToggleShop = async () => {
@@ -77,6 +87,7 @@ export default function DashboardPage() {
       <Container maxWidth="md">
         <m.div variants={containerVariants} initial="hidden" animate="show">
           
+          {/* HEADER ADMIN */}
           <m.div variants={itemVariants}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
               <Box display="flex" alignItems="center" gap={2}>
@@ -84,45 +95,72 @@ export default function DashboardPage() {
                   <Storefront fontSize="large" />
                 </Avatar>
                 <Box>
-                  <Typography variant="body2" color="text.secondary" fontWeight="bold" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: "#6E5D54", fontWeight: 700, display: "flex", alignItems: "center", gap: 0.5 }}>
                     <WavingHand fontSize="small" sx={{ color: "#fbc02d" }} /> Konnichiwa,
                   </Typography>
-                  <Typography variant="h5" fontWeight="900" color={COLORS.textDark} sx={{ letterSpacing: -0.5 }}>
+                  <Typography variant="h5" fontWeight={900} color="#2D2420" sx={{ letterSpacing: "-0.4px" }}>
                     Admin IAN
                   </Typography>
                 </Box>
               </Box>
               <m.div whileTap={{ scale: 0.85 }}>
-                <IconButton onClick={handleLogout} sx={{ bgcolor: "#ffebee", color: "error.main", borderRadius: 3, p: 1.5 }}>
+                <IconButton onClick={handleLogout} aria-label="Keluar" sx={{ bgcolor: "#ffebee", color: "error.main", borderRadius: 3, p: 1.5 }}>
                   <Logout />
                 </IconButton>
               </m.div>
             </Box>
           </m.div>
 
+          {/* KARTU JAM, CUACA RINGKAS 9 JAM & STATUS KEDAI */}
           <m.div variants={itemVariants}>
-            <Card elevation={0} sx={{ borderRadius: 4, mb: 3, border: "1px solid #eee", overflow: "hidden" }}>
+            <Card elevation={0} sx={{ borderRadius: 4, mb: 3, border: "1px solid #e6ddd6", overflow: "hidden", boxShadow: "0 4px 16px rgba(45, 36, 32, 0.04)" }}>
               <Box display="flex" flexDirection="column">
-                <Box p={2.5} bgcolor="white" display="flex" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Typography variant="h4" fontWeight="900" color={COLORS.primary} sx={{ letterSpacing: 1 }}>
+                <Box p={2.5} bgcolor="white" display="flex" justifyContent="space-between" alignItems="center" gap={1.5}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      variant="h4"
+                      fontWeight={900}
+                      color={COLORS.primary}
+                      sx={{
+                        fontSize: { xs: "1.85rem", sm: "2.125rem" },
+                        letterSpacing: 1,
+                        fontVariantNumeric: "tabular-nums"
+                      }}
+                    >
                       {timeString}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" fontWeight="bold">
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "#6E5D54",
+                        fontWeight: 700,
+                        fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                        mt: 0.25
+                      }}
+                    >
                       {dateString}
                     </Typography>
                   </Box>
-                  <AccessTime sx={{ fontSize: 40, color: COLORS.secondary, opacity: 0.2 }} />
+
+                  {/* Indikator Cuaca Ringkas (Ketuk untuk detail 9 jam ke depan) */}
+                  <WeatherCompactTrigger
+                    weather={weather}
+                    isExpanded={isWeatherExpanded}
+                    onToggle={() => setIsWeatherExpanded((prev) => !prev)}
+                  />
                 </Box>
+
+                {/* Panel Rincian Cuaca 9 Jam ke Depan */}
+                <WeatherExpandedPanel weather={weather} isExpanded={isWeatherExpanded} />
                 
                 <Divider />
 
-                <Box p={2} bgcolor={isShopOpen ? "#e8f5e9" : "#ffebee"} display="flex" justifyContent="space-between" alignItems="center" sx={{ transition: "all 0.3s ease" }}>
+                <Box p={2.25} bgcolor={isShopOpen ? "#e8f5e9" : "#ffebee"} display="flex" justifyContent="space-between" alignItems="center" sx={{ transition: "all 0.3s ease" }}>
                   <Box>
-                    <Typography variant="subtitle1" fontWeight="900" color={isShopOpen ? "success.main" : "error.main"}>
+                    <Typography variant="subtitle1" fontWeight={800} color={isShopOpen ? "success.main" : "error.main"}>
                       Status Kedai
                     </Typography>
-                    <Typography variant="caption" fontWeight="bold" color="text.secondary">
+                    <Typography variant="caption" sx={{ color: "#6E5D54", fontWeight: 700 }}>
                       {isShopOpen ? "Menerima pesanan online & offline" : "Kedai sedang ditutup saat ini"}
                     </Typography>
                   </Box>
@@ -137,6 +175,7 @@ export default function DashboardPage() {
             </Card>
           </m.div>
 
+          {/* MENU NAVIGASI UTAMA */}
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2.5 }}>
             
             <m.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
@@ -146,8 +185,12 @@ export default function DashboardPage() {
                     <PointOfSale sx={{ fontSize: 36 }} />
                   </Box>
                   <Box>
-                    <Typography variant="h6" fontWeight="900" lineHeight={1.2} mb={0.5}>Halaman<br/>Kasir</Typography>
-                    <Typography variant="caption" fontWeight="bold" sx={{ opacity: 0.8 }}>Input & Kelola Antrean</Typography>
+                    <Typography variant="h6" fontWeight={900} lineHeight={1.2} mb={0.5} sx={{ letterSpacing: "-0.3px" }}>
+                      Halaman<br/>Kasir
+                    </Typography>
+                    <Typography variant="caption" fontWeight={700} sx={{ opacity: 0.85 }}>
+                      Input & Kelola Antrean
+                    </Typography>
                   </Box>
                 </CardActionArea>
               </Card>
@@ -160,8 +203,12 @@ export default function DashboardPage() {
                     <InsertChartRounded sx={{ fontSize: 36 }} />
                   </Box>
                   <Box>
-                    <Typography variant="h6" fontWeight="900" lineHeight={1.2} mb={0.5}>Rekap<br/>Penjualan</Typography>
-                    <Typography variant="caption" fontWeight="bold" sx={{ opacity: 0.8 }}>Laporan & Statistik</Typography>
+                    <Typography variant="h6" fontWeight={900} lineHeight={1.2} mb={0.5} sx={{ letterSpacing: "-0.3px" }}>
+                      Rekap<br/>Penjualan
+                    </Typography>
+                    <Typography variant="caption" fontWeight={700} sx={{ opacity: 0.85 }}>
+                      Laporan & Statistik
+                    </Typography>
                   </Box>
                 </CardActionArea>
               </Card>
@@ -174,8 +221,12 @@ export default function DashboardPage() {
                     <Calculate sx={{ fontSize: 36 }} />
                   </Box>
                   <Box>
-                    <Typography variant="h6" fontWeight="900" lineHeight={1.2} mb={0.5}>Hitung<br/>Cepat</Typography>
-                    <Typography variant="caption" fontWeight="bold" sx={{ opacity: 0.8 }}>Counter Manual</Typography>
+                    <Typography variant="h6" fontWeight={900} lineHeight={1.2} mb={0.5} sx={{ letterSpacing: "-0.3px" }}>
+                      Hitung<br/>Cepat
+                    </Typography>
+                    <Typography variant="caption" fontWeight={700} sx={{ opacity: 0.85 }}>
+                      Counter Manual
+                    </Typography>
                   </Box>
                 </CardActionArea>
               </Card>
