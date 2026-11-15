@@ -35,11 +35,11 @@ function parseWeatherCode(code) {
   return { label: "Berawan", type: "cloudy" };
 }
 
-function WeatherIcon({ type, size = 20, color }) {
-  if (type === "clear") return <WbSunny sx={{ fontSize: size, color: color || "#F59E0B" }} />;
-  if (type === "rain") return <WaterDrop sx={{ fontSize: size, color: color || COLORS.info }} />;
-  if (type === "storm") return <Thunderstorm sx={{ fontSize: size, color: color || COLORS.primary }} />;
-  return <Cloud sx={{ fontSize: size, color: color || "#8D7B70" }} />;
+function WeatherIcon({ type, sxSize = 20, color }) {
+  if (type === "clear") return <WbSunny sx={{ fontSize: sxSize, color: color || "#F59E0B" }} />;
+  if (type === "rain") return <WaterDrop sx={{ fontSize: sxSize, color: color || COLORS.info }} />;
+  if (type === "storm") return <Thunderstorm sx={{ fontSize: sxSize, color: color || COLORS.primary }} />;
+  return <Cloud sx={{ fontSize: sxSize, color: color || "#8D7B70" }} />;
 }
 
 function getOperationalStatus(maxRainProb) {
@@ -149,12 +149,22 @@ export function useWeatherForecast() {
   return { weatherData, loading, isRefreshing, error, fetchWeather };
 }
 
-// Pil indikator ringkas di samping jam
+// Pil indikator ringkas di samping jam (responsif terhadap lebar & orientasi layar)
 export function WeatherCompactTrigger({ weather, isExpanded, onToggle }) {
   const { weatherData, loading, error, fetchWeather } = weather;
 
   if (loading) {
-    return <Skeleton variant="rounded" width={116} height={50} sx={{ borderRadius: 3, flexShrink: 0 }} />;
+    return (
+      <Skeleton
+        variant="rounded"
+        sx={{
+          width: { xs: 112, sm: 165, md: 195 },
+          height: { xs: 48, sm: 54 },
+          borderRadius: 3,
+          flexShrink: 0
+        }}
+      />
+    );
   }
 
   if (error || !weatherData) {
@@ -165,7 +175,7 @@ export function WeatherCompactTrigger({ weather, isExpanded, onToggle }) {
           fetchWeather(true);
         }}
         sx={{
-          px: 1.5,
+          px: { xs: 1.5, sm: 2 },
           py: 1,
           minHeight: "48px",
           borderRadius: 3,
@@ -208,15 +218,15 @@ export function WeatherCompactTrigger({ weather, isExpanded, onToggle }) {
           }
         }}
         sx={{
-          px: 1.5,
-          py: 1,
-          minHeight: "48px",
+          px: { xs: 1.35, sm: 1.85, md: 2.25 },
+          py: { xs: 0.9, sm: 1.15, md: 1.3 },
+          minHeight: { xs: "48px", sm: "54px" },
           borderRadius: 3,
           bgcolor: isExpanded ? "rgba(211, 47, 47, 0.05)" : status.bgcolor,
           border: `1.5px solid ${isExpanded ? COLORS.primary : status.borderColor}`,
           display: "flex",
           alignItems: "center",
-          gap: 1,
+          gap: { xs: 0.9, sm: 1.25 },
           cursor: "pointer",
           userSelect: "none",
           transition: "all 0.2s ease",
@@ -225,21 +235,44 @@ export function WeatherCompactTrigger({ weather, isExpanded, onToggle }) {
           }
         }}
       >
-        <WeatherIcon type={weatherData.currentInfo.type} size={24} />
+        <WeatherIcon
+          type={weatherData.currentInfo.type}
+          sxSize={{ xs: 22, sm: 26, md: 28 }}
+        />
 
         <Box sx={{ textAlign: "left" }}>
-          <Typography
-            variant="body1"
-            fontWeight={900}
-            color="#2D2420"
-            sx={{ lineHeight: 1.1, fontSize: "1rem", fontVariantNumeric: "tabular-nums" }}
-          >
-            {weatherData.temp}°C
-          </Typography>
-          <Box display="flex" alignItems="center" gap={0.35} mt={0.2}>
+          <Box display="flex" alignItems="baseline" gap={0.6}>
+            <Typography
+              variant="body1"
+              fontWeight={900}
+              color="#2D2420"
+              sx={{
+                lineHeight: 1.1,
+                fontSize: { xs: "0.98rem", sm: "1.1rem", md: "1.2rem" },
+                fontVariantNumeric: "tabular-nums"
+              }}
+            >
+              {weatherData.temp}°C
+            </Typography>
+
+            {/* Muncul pada tablet portrait & landscape (sm ke atas) */}
+            <Box
+              component="span"
+              sx={{
+                display: { xs: "none", sm: "inline" },
+                fontSize: { sm: "0.82rem", md: "0.88rem" },
+                fontWeight: 800,
+                color: "#3B302A"
+              }}
+            >
+              • {weatherData.currentInfo.label}
+            </Box>
+          </Box>
+
+          <Box display="flex" alignItems="center" gap={0.35} mt={0.25}>
             <WaterDrop
               sx={{
-                fontSize: 12,
+                fontSize: { xs: 12, sm: 13 },
                 color: maxRainProb >= 60 ? COLORS.primary : maxRainProb >= 30 ? "#E65100" : COLORS.info
               }}
             />
@@ -247,13 +280,16 @@ export function WeatherCompactTrigger({ weather, isExpanded, onToggle }) {
               variant="caption"
               sx={{
                 fontWeight: 800,
-                fontSize: "0.72rem",
+                fontSize: { xs: "0.72rem", sm: "0.78rem" },
                 lineHeight: 1,
                 fontVariantNumeric: "tabular-nums",
                 color: maxRainProb >= 60 ? COLORS.primary : maxRainProb >= 30 ? "#E65100" : "#6E5D54"
               }}
             >
               Maks {maxRainProb}%
+              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                {" "}({status.shortLabel})
+              </Box>
             </Typography>
           </Box>
         </Box>
@@ -263,14 +299,14 @@ export function WeatherCompactTrigger({ weather, isExpanded, onToggle }) {
           transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           style={{ display: "flex", alignItems: "center" }}
         >
-          <ExpandMore sx={{ fontSize: 20, color: "#6E5D54" }} />
+          <ExpandMore sx={{ fontSize: { xs: 20, sm: 22 }, color: "#6E5D54" }} />
         </m.div>
       </Box>
     </m.div>
   );
 }
 
-// Panel detail 9 jam ke depan yang terbuka saat pil cuaca diketuk
+// Panel detail 9 jam ke depan: 3x3 di HP/Tablet Portrait, 1 baris linimasa (9 kolom) di Tablet Landscape
 export function WeatherExpandedPanel({ weather, isExpanded }) {
   const { weatherData, isRefreshing, fetchWeather } = weather;
 
@@ -290,7 +326,15 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
           transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
           style={{ overflow: "hidden" }}
         >
-          <Box sx={{ px: 2.5, pb: 2.25, pt: 1.5, bgcolor: "#FFFDF9", borderTop: "1px dashed #e6ddd6" }}>
+          <Box
+            sx={{
+              px: { xs: 2, sm: 2.5, md: 3 },
+              pb: { xs: 2, sm: 2.25 },
+              pt: 1.5,
+              bgcolor: "#FFFDF9",
+              borderTop: "1px dashed #e6ddd6"
+            }}
+          >
             {/* Header Info & Status 9 Jam */}
             <Box display="flex" justifyContent="space-between" alignItems="center" gap={1} mb={1.5} flexWrap="wrap">
               <Box display="flex" alignItems="center" gap={0.75}>
@@ -301,8 +345,8 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
                     bgcolor: maxRainProb < 30 ? "#e8f5e9" : status.bgcolor,
                     color: maxRainProb < 30 ? COLORS.success : status.color,
                     fontWeight: 800,
-                    fontSize: "0.74rem",
-                    height: "24px"
+                    fontSize: "0.75rem",
+                    height: "25px"
                   }}
                 />
                 <Typography variant="caption" sx={{ color: "#6E5D54", fontWeight: 700 }}>
@@ -336,8 +380,14 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
               </Box>
             </Box>
 
-            {/* Grid 3x3 untuk 9 Jam Operasional */}
-            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+            {/* Grid Adaptif: 3 kolom x 3 baris di Portrait (xs/sm), 9 kolom x 1 baris linimasa di Landscape (md+) */}
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "repeat(3, 1fr)", md: "repeat(9, 1fr)" },
+                gap: { xs: 1, sm: 1.25, md: 0.85 }
+              }}
+            >
               {weatherData.nextHours.map((slot, idx) => {
                 const isHighRisk = slot.prob >= 60;
                 const isMedRisk = slot.prob >= 30 && slot.prob < 60;
@@ -346,8 +396,8 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
                   <Box
                     key={idx}
                     sx={{
-                      py: 0.9,
-                      px: 1.25,
+                      py: { xs: 0.9, sm: 1.1, md: 1.15 },
+                      px: { xs: 1.25, sm: 1.5, md: 0.6 },
                       borderRadius: 2.5,
                       bgcolor: isHighRisk
                         ? "rgba(211, 47, 47, 0.08)"
@@ -360,19 +410,22 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
                           ? "1px solid rgba(230, 81, 0, 0.2)"
                           : "1px solid transparent",
                       display: "flex",
+                      flexDirection: { xs: "row", md: "column" },
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 0.5
+                      justifyContent: { xs: "space-between", md: "center" },
+                      textAlign: { xs: "left", md: "center" },
+                      gap: { xs: 0.5, md: 0.55 }
                     }}
                   >
-                    <Box>
+                    {/* Jam & Suhu pada mode Portrait (xs/sm) */}
+                    <Box sx={{ display: { xs: "block", md: "none" } }}>
                       <Typography
                         variant="caption"
                         display="block"
                         sx={{
                           color: idx === 0 ? "#2D2420" : "#6E5D54",
                           fontWeight: idx === 0 ? 800 : 700,
-                          fontSize: "0.74rem",
+                          fontSize: { xs: "0.74rem", sm: "0.8rem" },
                           lineHeight: 1.15,
                           fontVariantNumeric: "tabular-nums"
                         }}
@@ -384,7 +437,7 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
                         sx={{
                           color: "#3B302A",
                           fontWeight: 700,
-                          fontSize: "0.72rem",
+                          fontSize: { xs: "0.72rem", sm: "0.78rem" },
                           fontVariantNumeric: "tabular-nums"
                         }}
                       >
@@ -392,13 +445,35 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
                       </Typography>
                     </Box>
 
-                    <Box display="flex" alignItems="center" gap={0.4}>
-                      <WeatherIcon type={slot.type} size={18} />
+                    {/* Jam pada mode Landscape (md+) */}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: { xs: "none", md: "block" },
+                        color: idx === 0 ? "#2D2420" : "#6E5D54",
+                        fontWeight: idx === 0 ? 800 : 700,
+                        fontSize: "0.75rem",
+                        lineHeight: 1.1,
+                        fontVariantNumeric: "tabular-nums"
+                      }}
+                    >
+                      {slot.jam}
+                    </Typography>
+
+                    {/* Ikon & Peluang Hujan */}
+                    <Box
+                      display="flex"
+                      flexDirection={{ xs: "row", md: "column" }}
+                      alignItems="center"
+                      gap={{ xs: 0.45, md: 0.4 }}
+                    >
+                      <WeatherIcon type={slot.type} sxSize={{ xs: 18, sm: 20, md: 22 }} />
                       <Typography
                         variant="body2"
                         sx={{
                           fontWeight: 800,
-                          fontSize: "0.82rem",
+                          fontSize: { xs: "0.82rem", sm: "0.88rem", md: "0.85rem" },
+                          lineHeight: 1.1,
                           fontVariantNumeric: "tabular-nums",
                           color: isHighRisk ? COLORS.primary : isMedRisk ? "#E65100" : "#2D2420"
                         }}
@@ -406,6 +481,21 @@ export function WeatherExpandedPanel({ weather, isExpanded }) {
                         {slot.prob}%
                       </Typography>
                     </Box>
+
+                    {/* Suhu pada mode Landscape (md+) */}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: { xs: "none", md: "block" },
+                        color: "#6E5D54",
+                        fontWeight: 700,
+                        fontSize: "0.72rem",
+                        lineHeight: 1,
+                        fontVariantNumeric: "tabular-nums"
+                      }}
+                    >
+                      {slot.temp}°
+                    </Typography>
                   </Box>
                 );
               })}

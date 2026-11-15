@@ -79,19 +79,19 @@ export default function DashboardPage() {
   };
 
   const timeString = currentTime.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-  const dateString = currentTime.toLocaleDateString("id-ID", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const dateString = currentTime.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, pt: { xs: 4, md: 8 }, pb: 4 }}>
+    <Box sx={{ minHeight: "100vh", bgcolor: COLORS.background, pt: { xs: 3, sm: 4, md: 5 }, pb: 4 }}>
       <CssBaseline />
       <Container maxWidth="md">
         <m.div variants={containerVariants} initial="hidden" animate="show">
           
           {/* HEADER ADMIN */}
           <m.div variants={itemVariants}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={{ xs: 3, md: 3.5 }}>
               <Box display="flex" alignItems="center" gap={2}>
-                <Avatar sx={{ bgcolor: COLORS.primary, width: 56, height: 56, boxShadow: "0 4px 15px rgba(211, 47, 47, 0.3)" }}>
+                <Avatar sx={{ bgcolor: COLORS.primary, width: { xs: 50, sm: 56 }, height: { xs: 50, sm: 56 }, boxShadow: "0 4px 15px rgba(211, 47, 47, 0.3)" }}>
                   <Storefront fontSize="large" />
                 </Avatar>
                 <Box>
@@ -115,14 +115,25 @@ export default function DashboardPage() {
           <m.div variants={itemVariants}>
             <Card elevation={0} sx={{ borderRadius: 4, mb: 3, border: "1px solid #e6ddd6", overflow: "hidden", boxShadow: "0 4px 16px rgba(45, 36, 32, 0.04)" }}>
               <Box display="flex" flexDirection="column">
-                <Box p={2.5} bgcolor="white" display="flex" justifyContent="space-between" alignItems="center" gap={1.5}>
+                <Box
+                  sx={{
+                    p: { xs: 2, sm: 2.5, md: 3 },
+                    bgcolor: "white",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 1.5
+                  }}
+                >
                   <Box sx={{ minWidth: 0 }}>
                     <Typography
                       variant="h4"
                       fontWeight={900}
                       color={COLORS.primary}
                       sx={{
-                        fontSize: { xs: "1.85rem", sm: "2.125rem" },
+                        fontSize: { xs: "1.8rem", sm: "2.125rem", md: "2.35rem" },
+                        lineHeight: 1.1,
                         letterSpacing: 1,
                         fontVariantNumeric: "tabular-nums"
                       }}
@@ -134,8 +145,8 @@ export default function DashboardPage() {
                       sx={{
                         color: "#6E5D54",
                         fontWeight: 700,
-                        fontSize: { xs: "0.8rem", sm: "0.875rem" },
-                        mt: 0.25
+                        fontSize: { xs: "0.8rem", sm: "0.9rem", md: "0.95rem" },
+                        mt: 0.35
                       }}
                     >
                       {dateString}
@@ -155,7 +166,7 @@ export default function DashboardPage() {
                 
                 <Divider />
 
-                <Box p={2.25} bgcolor={isShopOpen ? "#e8f5e9" : "#ffebee"} display="flex" justifyContent="space-between" alignItems="center" sx={{ transition: "all 0.3s ease" }}>
+                <Box p={{ xs: 2, sm: 2.25 }} bgcolor={isShopOpen ? "#e8f5e9" : "#ffebee"} display="flex" justifyContent="space-between" alignItems="center" sx={{ transition: "all 0.3s ease" }}>
                   <Box>
                     <Typography variant="subtitle1" fontWeight={800} color={isShopOpen ? "success.main" : "error.main"}>
                       Status Kedai
@@ -180,7 +191,7 @@ export default function DashboardPage() {
             
             <m.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ borderRadius: 4, bgcolor: COLORS.primary, color: "white", height: "100%", border: "2px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(211, 47, 47, 0.2)" }}>
-                <CardActionArea onClick={() => navigateTo("/cashier")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: "160px" }}>
+                <CardActionArea onClick={() => navigateTo("/cashier")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: { xs: "145px", sm: "160px" } }}>
                   <Box sx={{ p: 1.5, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 3, mb: 2 }}>
                     <PointOfSale sx={{ fontSize: 36 }} />
                   </Box>
@@ -198,7 +209,7 @@ export default function DashboardPage() {
 
             <m.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ borderRadius: 4, bgcolor: COLORS.info, color: "white", height: "100%", border: "2px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(2, 136, 209, 0.2)" }}>
-                <CardActionArea onClick={() => navigateTo("/recap")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: "160px" }}>
+                <CardActionArea onClick={() => navigateTo("/recap")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: { xs: "145px", sm: "160px" } }}>
                   <Box sx={{ p: 1.5, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 3, mb: 2 }}>
                     <InsertChartRounded sx={{ fontSize: 36 }} />
                   </Box>
@@ -216,7 +227,7 @@ export default function DashboardPage() {
 
             <m.div variants={itemVariants} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} style={{ height: "100%" }}>
               <Card elevation={0} sx={{ borderRadius: 4, bgcolor: "#ffb300", color: "white", height: "100%", border: "2px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(255, 179, 0, 0.2)" }}>
-                <CardActionArea onClick={() => navigateTo("/calculator")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: "160px" }}>
+                <CardActionArea onClick={() => navigateTo("/calculator")} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "space-between", minHeight: { xs: "145px", sm: "160px" } }}>
                   <Box sx={{ p: 1.5, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 3, mb: 2 }}>
                     <Calculate sx={{ fontSize: 36 }} />
                   </Box>
